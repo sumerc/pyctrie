@@ -427,7 +427,7 @@ void _suggestR1(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         pk.s = &candidate->s[ki]; pk.len = candidate->len-ki; pk.next = NULL;
         p = trie_prefix(prefix, &pk);
         if (p && p->value) {
-            PUT(suggestions, candidate);
+            PUT_UNIQUE(suggestions, candidate);
         } else {
             //FREE_KEY(candidate);
         }
@@ -454,7 +454,7 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
 
     klen = key->len;
     if (trie_search(t, key)) {
-        PUT(suggestions, key);
+        PUT_UNIQUE(suggestions, key);
     } 
 
     pk.s = key->s; pk.len = ki; pk.next = NULL;
