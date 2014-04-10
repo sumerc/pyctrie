@@ -86,9 +86,10 @@ int _tmain(int argc, _TCHAR* argv[])
     FILE * fp;
     char line[256];
     long long t0;
-    trie_key_t suggestions;
+    trie_key_t suggestions1,suggestions2,suggestions3;
     trie_key_t k;
     trie_key_t *kp;
+    const size_t EDIT_DIST = 2;
 
     // change encoding to Turkish
     // 1254	windows-1254	ANSI Turkish; Turkish (Windows)
@@ -113,31 +114,44 @@ int _tmain(int argc, _TCHAR* argv[])
 
     //nd = trie_search(g_root->root, "abd-i mahsûs", 12);
     
-    k.s = (char *)malloc(6);
-    memcpy(k.s, "zebülk", 6);
-    k.len = 6;
+    k.s = (char *)malloc(5);
+    memcpy(k.s, "zebek", 5);
+    k.len = 5;
     k.next = NULL;
 
     t0 = now();
-    kp = &suggestions; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
-    suggestR1(g_root, &k, 2, &kp); 
+    kp = &suggestions1; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
+    suggestR1(g_root, &k, EDIT_DIST, &kp); 
     printf("elapsed suggestR1:%lld msec.\r\n", now()-t0);
 
     print_suggestions(kp);
     
-    kp->s = NULL; kp->len=0;kp->next = kp; // make circular
+    kp = &suggestions2; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
     t0 = now();
-    suggestR2(g_root, &k, 2, &kp); 
+    suggestR2(g_root, &k, EDIT_DIST, &kp); 
     printf("elapsed suggestR2:%lld msec.\r\n", now()-t0);
 
     print_suggestions(kp);
     
-    kp->s = NULL; kp->len=0;kp->next = kp; // make circular
+    kp = &suggestions3; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
     t0 = now();
-    suggestI(g_root, &k, 2, &kp);
+    suggestI(g_root, &k, EDIT_DIST, &kp);
     printf("elapsed suggestI:%lld msec.\r\n", now()-t0);
 
     print_suggestions(kp);
+
+    /*
+    k.s = "s"; k.len = 1; k.next = NULL;
+    nd = trie_prefix(g_root->root, &k);
+
+    k.s = "e"; k.len = 1; k.next = NULL;
+    nd = trie_prefix(nd, &k);
+
+    k.s = "b"; k.len = 1; k.next = NULL;
+    nd = trie_prefix(nd, &k);
+
+    k.s = "k"; k.len = 1; k.next = NULL;
+    nd = trie_prefix(nd, &k);*/
 
     fp = fopen("out_keys_8859_9", "r");
     if (fp) {
@@ -151,6 +165,9 @@ int _tmain(int argc, _TCHAR* argv[])
         printf("elapsed:%lld msec.\r\n", now()-t0);
     }
     fclose(fp);
+
+
+    
     
     trie_destroy(g_root);
     

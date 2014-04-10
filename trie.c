@@ -319,20 +319,21 @@ void PUT(trie_key_t **q, trie_key_t *e)
 
 int PUT_UNIQUE(trie_key_t **q, trie_key_t *e)
 {
-    trie_key_t *p;
+    trie_key_t *p,*next;
 
     p = (*q);
     while(p) {
+        next = p->next;
         if (e->len == p->len) {
             if (memcmp(p->s, e->s, p->len) == 0) {
                 return 0;
             }
         }
-        if (p->next == (*q))
+        if (next == (*q))
         {
             break;
         }
-        p = p->next;
+        p = next;
     }   
     PUT(q, e);
     return 1;
@@ -350,6 +351,45 @@ trie_key_t *GET(trie_key_t **q)
         head->next = head->next->next;
     }
     return result;
+}
+
+void PUSH(trie_key_t **k, trie_key_t *e)
+{
+    e->next = (*k);
+    *k = e;
+}
+
+int PUSH_UNIQUE(trie_key_t **k, trie_key_t *e)
+{
+    trie_key_t *p,*next;
+
+    p = *k;
+    while(p) {
+        next = p->next;
+
+        if (e->len == p->len) {
+            if (memcmp(p->s, e->s, p->len) == 0) {
+                return 0;
+            }
+        }
+
+        if (next == (*k))
+        {
+            break;
+        }
+        p = next;
+    }
+    PUSH(k, e);
+    return 1;
+}
+
+trie_key_t * POP(trie_key_t **k)
+{
+    trie_key_t *r;
+
+    r = *k;
+    *k = (*k)->next;
+    return r;
 }
                
 // Candidates added to a list for each step and called recursively at the end.
@@ -522,67 +562,75 @@ void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sug
 void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
 {
     unsigned int i,ki,cs,klen;
-    trie_key_t cds, pk;
+    trie_key_t cdq, pk;
     trie_key_t *q,*k,*kp;
     trie_node_t *p, *prefix;
 
-    // init partial/result queue
-    cds.s = NULL; cds.len = 0; cds.next = &cds; q = &cds; key->next = key;
-    
+    // init partial queue
+    cdq.s = NULL; cdq.len = 0; cdq.next = &cdq; q = &cdq;
+        
     PUT(&q, key);
     cs = 1;
     max_distance += 1;
     while(max_distance--)
     {
         i = cs;
-        cs = 0;
+        cs = 0;        
         while(i--)
-        {        
+        {      
             k = GET(&q); klen = k->len;
             if (trie_search(t, k))
             {
-                PUT(suggestions, k);
+                PUT_UNIQUE(suggestions, k);
             }
 
+            if(max_distance == 0)
+            {
+                continue;
+            }
+
+            prefix = t->root;
             for(ki=0;ki<klen;ki++)
             {
                 // check prefix
-                pk.s = k->s; pk.len = ki; pk.next = NULL;
-                prefix = trie_prefix(t->root, &pk);
-                if(!prefix) {
-                    break; // no need to check remanining
+                if (ki > 0) {
+                    pk.s = k->s; pk.len = ki; pk.next = NULL;                    
+                    prefix = trie_prefix(t->root, &pk);
+                    if(!prefix) {
+                        break; // no need to check remanining
+                    }  
                 }
-
+                
                 // deletion (prefix + suffix[1:])
                 if (klen > 1){
                     kp = DUP_KEY(k, klen-1, ki); 
 
                     memcpy(&kp->s[ki], &k->s[ki+1], klen-ki-1);
-                                        
+                         
                     PUT(&q, kp);
                     cs++;
                 }
                 
                 // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
                 if (ki < klen-1) {
-                    kp = DUP_KEY(key, klen, ki);
+                    kp = DUP_KEY(k, klen, ki);
 
                     memcpy(&kp->s[ki], &k->s[ki+1], 1);
                     memcpy(&kp->s[ki+1], &k->s[ki], 1);
                     memcpy(&kp->s[ki+2], &k->s[ki+2], klen-ki-2);
-
+                                       
                     PUT(&q, kp);
                     cs++;
                 }
-             
+
                 // insertion (prefix + x + suffix[:])
                 p = prefix->children;
                 while(p){
-                    kp = DUP_KEY(key, klen+1, ki);
+                    kp = DUP_KEY(k, klen+1, ki);
 
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki], klen-ki);
-                                        
+                                         
                     PUT(&q, kp);
                     cs++;
 
@@ -593,17 +641,17 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                 // alteration (prefix + x + suffix[1:])
                 p = prefix->children;
                 while(p){
-                    kp = DUP_KEY(key, klen, ki);
+                    kp = DUP_KEY(k, klen, ki);
 
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki+1], klen-ki-1);
-                                        
+                                         
                     PUT(&q, kp);
                     cs++;
 
                     p = p->next;
                 }
-            }            
-        }
+            } 
+        } 
     }
 }
