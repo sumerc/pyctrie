@@ -89,7 +89,7 @@ int _tmain(int argc, _TCHAR* argv[])
     trie_key_t suggestions1,suggestions2,suggestions3;
     trie_key_t k;
     trie_key_t *kp;
-    const size_t EDIT_DIST = 2;
+    const size_t EDIT_DIST = 3;
 
     // change encoding to Turkish
     // 1254	windows-1254	ANSI Turkish; Turkish (Windows)
@@ -113,7 +113,7 @@ int _tmain(int argc, _TCHAR* argv[])
     printf("node_count:%u, mem_used:%u\r\n", g_root->node_count, trie_mem_usage(g_root));
 
     //nd = trie_search(g_root->root, "abd-i mahsûs", 12);
-    
+    /*
     k.s = (char *)malloc(5);
     memcpy(k.s, "zebek", 5);
     k.len = 5;
@@ -123,22 +123,31 @@ int _tmain(int argc, _TCHAR* argv[])
     kp = &suggestions1; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
     suggestR1(g_root, &k, EDIT_DIST, &kp); 
     printf("elapsed suggestR1:%lld msec.\r\n", now()-t0);
-
     print_suggestions(kp);
-    
+   */
+    k.s = (char *)malloc(5);
+    memcpy(k.s, "zebek", 5);
+    k.len = 5;
+    k.next = NULL;
+
     kp = &suggestions2; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
     t0 = now();
     suggestR2(g_root, &k, EDIT_DIST, &kp); 
     printf("elapsed suggestR2:%lld msec.\r\n", now()-t0);
-
     print_suggestions(kp);
     
+    k.s = (char *)malloc(5);
+    memcpy(k.s, "zebek", 5);
+    k.len = 5;
+    k.next = NULL;
+
     kp = &suggestions3; kp->s = NULL; kp->len=0;kp->next = kp; // make circular
     t0 = now();
     suggestI(g_root, &k, EDIT_DIST, &kp);
     printf("elapsed suggestI:%lld msec.\r\n", now()-t0);
 
     print_suggestions(kp);
+    
 
     /*
     k.s = "s"; k.len = 1; k.next = NULL;

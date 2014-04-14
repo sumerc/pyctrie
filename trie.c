@@ -281,15 +281,7 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
     return found;
 }
 
-/*
-#define ADD_CANDIDATE(k) { \
-    k->next = candidates.next; \
-    candidates.next = k; \
-}
-
-#define DEL_CANDIDATE(k) { \
-    free(k); \
-}*/
+static size_t _key_count = 0;
 
 trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index) 
 { 
@@ -301,13 +293,16 @@ trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index)
     pdk->next = src->next;
     memcpy(pdk->s, src->s, index);
 
+    _key_count++;
+
     return pdk;
 }
 
 void FREE_KEY(trie_key_t *src) 
 { 
     free(src->s);
-    //free(src);
+    free(src);
+    _key_count--;
 }
 
 void PUT(trie_key_t **q, trie_key_t *e)
@@ -467,9 +462,11 @@ void _suggestR1(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         pk.s = &candidate->s[ki]; pk.len = candidate->len-ki; pk.next = NULL;
         p = trie_prefix(prefix, &pk);
         if (p && p->value) {
-            PUT_UNIQUE(suggestions, candidate);
+            if (!PUT_UNIQUE(suggestions, candidate)) {
+                FREE_KEY(candidate);
+            }             
         } else {
-            //FREE_KEY(candidate);
+            FREE_KEY(candidate);
         }
         candidate = GET(&pcandidates);
     }
@@ -483,7 +480,9 @@ void suggestR1(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sug
     _suggestR1(t, key, 0, max_distance, suggestions);           
 }
 
-// Each candidate is called recursively.
+// Each candidate is called recursively. 
+// Currently fastest: as we don'm t use any auxiliary queue to hold the candidates. And we
+// possibly have a better cache behavior.
 // Complexity: O(m^d), m = string length, d = edit distance
 void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **suggestions)
 {
@@ -491,18 +490,32 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
     trie_key_t pk; 
     trie_key_t *kp;
     trie_node_t *prefix,*p;
-
-    klen = key->len;
-    if (trie_search(t, key)) {
-        PUT_UNIQUE(suggestions, key);
-    } 
-
-    pk.s = key->s; pk.len = ki; pk.next = NULL;
-    prefix = trie_prefix(t->root, &pk);
-    if ((ki >= klen) || (cd == 0) || (!prefix)) {
-        return;
+    
+    // search prefix 
+    prefix = t->root;
+    if (ki > 0) {
+        pk.s = key->s; pk.len = ki; pk.next = NULL;
+        prefix = trie_prefix(t->root, &pk);
+        if (!prefix) {
+            return;
+        }
     }
     
+    // search suffix (which will complete the search for the full key)
+    klen = key->len;    
+    pk.s = &key->s[ki]; pk.len = klen-ki; pk.next = NULL;
+    p = trie_prefix(prefix, &pk);    
+    if (p && p->value) {
+        kp = DUP_KEY(key, klen, klen);
+        if (!PUT_UNIQUE(suggestions, kp)) {
+            FREE_KEY(kp);
+        }
+    }
+    
+    if ((ki >= klen) || (cd == 0)) {
+        return;
+    }
+
     // deletion (prefix + suffix[1:])
     if (klen > 1){
         kp = DUP_KEY(key, klen-1, ki); 
@@ -510,6 +523,7 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         memcpy(&kp->s[ki], &key->s[ki+1], klen-ki-1);
 
         _suggestR2(t, kp, 0, cd-1, suggestions);
+        FREE_KEY(kp);
     }
 
     // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
@@ -521,6 +535,7 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         memcpy(&kp->s[ki+2], &key->s[ki+2], klen-ki-2);
 
         _suggestR2(t, kp, 0, cd-1, suggestions);
+        FREE_KEY(kp);
     }
 
                          
@@ -533,6 +548,7 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         memcpy(&kp->s[ki+1], &key->s[ki], klen-ki);
 
         _suggestR2(t, kp, 0, cd-1, suggestions);
+        FREE_KEY(kp);
 
         p = p->next;
     }
@@ -546,12 +562,12 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
         memcpy(&kp->s[ki+1], &key->s[ki+1], klen-ki-1);
 
         _suggestR2(t, kp, 0, cd-1, suggestions);
+        FREE_KEY(kp);
 
         p = p->next;
     }
 
     _suggestR2(t, key, ki+1, cd, suggestions);
-
 }
        
 void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
@@ -559,6 +575,10 @@ void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sug
     _suggestR2(t, key, 0, max_distance, suggestions);           
 }
 
+// Iterative version. This is 30x times slower than the recursive versions. This is because,
+// we add the items to be processed to the queue until distance is reached due to the nature 
+// of the queue structure. We need to somehow optimize this by processing suggestions faster.
+// Complexity: O(m^d), m = string length, d = edit distance
 void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
 {
     unsigned int i,ki,cs,klen;
@@ -581,12 +601,10 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
             k = GET(&q); klen = k->len;
             if (trie_search(t, k))
             {
-                PUT_UNIQUE(suggestions, k);
-            }
-
-            if(max_distance == 0)
-            {
-                continue;
+                kp = DUP_KEY(k, k->len, k->len);
+                if (!PUT_UNIQUE(suggestions, kp)) {
+                    FREE_KEY(kp);
+                }
             }
 
             prefix = t->root;
@@ -606,9 +624,21 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     kp = DUP_KEY(k, klen-1, ki); 
 
                     memcpy(&kp->s[ki], &k->s[ki+1], klen-ki-1);
-                         
-                    PUT(&q, kp);
-                    cs++;
+                    
+                    if(max_distance == 1) {
+                        if (trie_search(t, kp))
+                        {   
+                            if (!PUT_UNIQUE(suggestions, kp)) {
+                                FREE_KEY(kp);
+                            }
+                        } else {
+                            FREE_KEY(kp);
+                        }
+
+                    } else {
+                        PUT(&q, kp);
+                        cs++;
+                    }
                 }
                 
                 // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
@@ -619,8 +649,18 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki+1], &k->s[ki], 1);
                     memcpy(&kp->s[ki+2], &k->s[ki+2], klen-ki-2);
                                        
-                    PUT(&q, kp);
-                    cs++;
+                    if(max_distance == 1) {
+                        if (trie_search(t, kp)) {   
+                            if (!PUT_UNIQUE(suggestions, kp)) {
+                                FREE_KEY(kp);
+                            }
+                        } else {
+                            FREE_KEY(kp);
+                        }
+                    } else {
+                        PUT(&q, kp);
+                        cs++;
+                    }
                 }
 
                 // insertion (prefix + x + suffix[:])
@@ -631,8 +671,18 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki], klen-ki);
                                          
-                    PUT(&q, kp);
-                    cs++;
+                    if(max_distance == 1) {
+                        if (trie_search(t, kp)) {   
+                            if (!PUT_UNIQUE(suggestions, kp)) {
+                                FREE_KEY(kp);
+                            }
+                        } else {
+                            FREE_KEY(kp);
+                        }
+                    } else {
+                        PUT(&q, kp);
+                        cs++;
+                    }
 
                     p = p->next;
                 }
@@ -646,12 +696,23 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki+1], klen-ki-1);
                                          
-                    PUT(&q, kp);
-                    cs++;
-
+                    if(max_distance == 1) {
+                        if (trie_search(t, kp)) {   
+                            if (!PUT_UNIQUE(suggestions, kp)) {
+                                FREE_KEY(kp);
+                            }
+                        } else {
+                            FREE_KEY(kp);
+                        }
+                    } else {
+                        PUT(&q, kp);
+                        cs++;
+                    }
                     p = p->next;
                 }
             } 
+            if (k != key)
+                FREE_KEY(k);
         } 
     }
 }
