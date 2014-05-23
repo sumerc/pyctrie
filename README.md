@@ -1,5 +1,5 @@
 
-Yappi
+Treez
 ===================
 
 [![Build Status](https://drone.io/bitbucket.org/sumerc/treez/status.png)](https://drone.io/bitbucket.org/sumerc/treez/latest)
