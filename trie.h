@@ -4,7 +4,13 @@
 
 #include "stdio.h"
 #include "stdlib.h"
+
+
+#ifdef _MSC_VER 
 #include "stddef.h" // uintptr_t
+#else
+#include "stdint.h"
+#endif
 
 typedef struct trie_key_s {
     char *s;
