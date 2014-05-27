@@ -3,7 +3,7 @@
 
 #include "Python.h"
 
-#define APP_NAME FFtreez
+#define TRIE_CHAR Py_UNICODE
 
 #if defined(MS_WINDOWS)
 #define _WINDOWS
@@ -13,7 +13,9 @@
 #define _UNIX
 #endif
 
-#ifndef _MSC_VER /* non-windows compiler */
+#ifdef _MSC_VER 
+#include "stddef.h" 
+#else
 #include "stdint.h"
 #endif
 

@@ -2,7 +2,7 @@
 #include "trie.h"
 #include "string.h"
 
-trie_node_t *_node_create(char key, uintptr_t value)
+trie_node_t *_node_create(TRIE_CHAR key, uintptr_t value)
 {
     trie_node_t *nd;
 
@@ -27,7 +27,7 @@ trie_t *trie_create(void)
 
     t = (trie_t *)malloc(sizeof(trie_t));
     if (t) {
-        t->root = _node_create((char)0, (uintptr_t)0); // root is a dummy node
+        t->root = _node_create((TRIE_CHAR)0, (uintptr_t)0); // root is a dummy node
         t->node_count = 1;
     }
     return t;
@@ -59,14 +59,14 @@ void trie_destroy(trie_t *t)
     free(t);
 }
 
-size_t trie_mem_usage(trie_t *t)
+unsigned long trie_mem_usage(trie_t *t)
 {
     return sizeof(trie_t) + (t->node_count * sizeof(trie_node_t));
 }
 
 trie_node_t *trie_prefix(trie_node_t *t, trie_key_t *key)
 {
-    char ch;
+    TRIE_CHAR ch;
     unsigned int i;    
     trie_node_t *curr, *parent;
 
@@ -109,8 +109,8 @@ trie_node_t *trie_search(trie_t *t, trie_key_t *key)
 
 int trie_add(trie_t *t, trie_key_t *key, uintptr_t value)
 {
+    TRIE_CHAR ch;
     unsigned int i;
-    char ch;
     trie_node_t *curr, *parent;
     
     i = 0;
@@ -145,7 +145,7 @@ int trie_add(trie_t *t, trie_key_t *key, uintptr_t value)
 // Complexity: O(m^2)
 int trie_del(trie_t *t, trie_key_t *key)
 {
-    char ch;
+    TRIE_CHAR ch;
     unsigned int i, klen;
     trie_node_t *curr, *parent, *grand_parent, *next;
         
@@ -288,7 +288,7 @@ trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index)
     trie_key_t *pdk;
 
     pdk = (trie_key_t *)malloc(sizeof(trie_key_t));
-    pdk->s = (char *)malloc(len);
+    pdk->s = (TRIE_CHAR *)malloc(len*sizeof(TRIE_CHAR));
     pdk->len = len;
     pdk->next = src->next;
     memcpy(pdk->s, src->s, index);
@@ -491,7 +491,7 @@ void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
     trie_key_t *kp;
     trie_node_t *prefix,*p;
     
-    // search prefix 
+    // search prefix first (we will need the pointer for the edit ops below.)
     prefix = t->root;
     if (ki > 0) {
         pk.s = key->s; pk.len = ki; pk.next = NULL;
@@ -575,9 +575,11 @@ void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sug
     _suggestR2(t, key, 0, max_distance, suggestions);           
 }
 
-// Iterative version. This is 30x times slower than the recursive versions. This is because,
+// Iterative version. However, different than above.
+// This is _30x_ times slower than the recursive versions. This is because,
 // we add the items to be processed to the queue until distance is reached due to the nature 
-// of the queue structure. We need to somehow optimize this by processing suggestions faster.
+// of the queue structure. In recursive functions, OTOH, items are processed once edit_distance
+// is reached which gives a _far_ better memory utilization.
 // Complexity: O(m^d), m = string length, d = edit distance
 void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
 {
