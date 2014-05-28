@@ -19,19 +19,25 @@ class TestBasic(unittest.TestCase):
             trie.delete(A())
         except _triez.Error:
             pass
-        res = trie.search("d")
+        res = trie.search(u"d")
         self.assertEqual(res, None)
         
     def test_basic(self):
         trie = triez.Trie()
         self.assertEqual(trie.node_count(), 1)
-        trie.add("tst", 14)
-        trie.add("tst", 15)
+        trie.add(u"tst", 14)
+        trie.add(u"tst", 15)
         self.assertEqual(trie.node_count(), 4)
-        res = trie.search("tst")
+        res = trie.search(u"tst")
         self.assertEqual(res, 15)
-        res = trie.search("tst")
+        res = trie.search(u"tst")
         self.assertEqual(res, 15)
+        self.assertTrue(trie.delete(u"tst"))
+        self.assertFalse(trie.delete(u"tst"))
+        
+        # TODO: use the example from Wikipedia
+        
+        
         
     """
     # it seems currently dict is 30x times faster than our trie.

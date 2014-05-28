@@ -112,7 +112,7 @@ static PyObject* triez_trie_search(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "invalid argument list. key must be a string object.");
+        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
         return NULL;
     }
     
@@ -142,7 +142,7 @@ static PyObject* triez_trie_add(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#O", &caps, &key, &key_size, &val)) {
-        PyErr_SetString(TriezError, "invalid argument list. key must be a string object.");
+        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
         return NULL;
     }
     
@@ -173,7 +173,7 @@ static PyObject* triez_trie_delete(PyObject *self, PyObject *args)
     int key_size;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "");
+        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
         return NULL;
     }
     
