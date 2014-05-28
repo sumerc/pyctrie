@@ -112,7 +112,7 @@ static PyObject* triez_trie_search(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "invalid argument list. key must be a string object.");
         return NULL;
     }
     
@@ -142,7 +142,7 @@ static PyObject* triez_trie_add(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#O", &caps, &key, &key_size, &val)) {
-        PyErr_SetString(TriezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "invalid argument list. key must be a string object.");
         return NULL;
     }
     
@@ -173,7 +173,7 @@ static PyObject* triez_trie_delete(PyObject *self, PyObject *args)
     int key_size;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "");
         return NULL;
     }
     
@@ -239,9 +239,9 @@ init_triez(void)
         return;
 #endif
 
-    TriezError = PyErr_NewException("_triez.error", NULL, NULL);
-    PyDict_SetItemString(PyModule_GetDict(m), "error", TriezError);
-
+    TriezError = PyErr_NewException("_triez.Error", NULL, NULL);
+    PyDict_SetItemString(PyModule_GetDict(m), "Error", TriezError);
+    
     if (!_initialize()) {
         PyErr_SetString(TriezError, "triez module cannot be initialized.");
 #ifdef IS_PY3K

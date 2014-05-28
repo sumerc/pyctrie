@@ -1,18 +1,35 @@
 import triez
+import _triez
 import unittest
 
-class A:
-    pass
-
 class TestBasic(unittest.TestCase):
+    
+    def test_invalid_input(self):
+        class A: pass
+        trie = triez.Trie()
+        try:
+            trie.add(5, 4)
+        except _triez.Error:
+            pass        
+        try:
+            trie.search(5)
+        except _triez.Error:
+            pass
+        try:
+            trie.delete(A())
+        except _triez.Error:
+            pass
+        res = trie.search("d")
+        self.assertEqual(res, None)
+        
     def test_basic(self):
         trie = triez.Trie()
         self.assertEqual(trie.node_count(), 1)
         trie.add("tst", 14)
         trie.add("tst", 15)
         self.assertEqual(trie.node_count(), 4)
-        res = trie.search("tst")        
-        self.assertEqual(res, 15)        
+        res = trie.search("tst")
+        self.assertEqual(res, 15)
         res = trie.search("tst")
         self.assertEqual(res, 15)
         
