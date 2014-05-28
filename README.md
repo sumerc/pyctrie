@@ -1,12 +1,8 @@
 
-Treez
+Triez
 ===================
 
-[![Build Status](https://drone.io/bitbucket.org/sumerc/treez/status.png)](https://drone.io/bitbucket.org/sumerc/treez/latest)
-
-Motivation:
-===================
-xxxx
+[![Build Status](https://drone.io/bitbucket.org/sumerc/triez/status.png)](https://drone.io/bitbucket.org/sumerc/triez/latest)
 
 Features:
 ===================

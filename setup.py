@@ -6,8 +6,8 @@ from distutils.core import Extension
 f = open('README.md')
 long_description = f.read()
 
-HOMEPAGE = "http://bitbucket.org/sumerc/treez/"
-NAME = "treez"
+HOMEPAGE = "http://bitbucket.org/sumerc/triez/"
+NAME = "triez"
 VERSION = "0.1"
 
 user_macros = []
@@ -46,15 +46,15 @@ setup(name=NAME,
         extra_compile_args = compile_args,
         extra_link_args = link_args,
         )],
-    py_modules =  ["treez"],
+    py_modules =  ["triez"],
     entry_points = {
     'console_scripts': [
-        'treez = treez:main',
+        'triez = triez:main',
         ],
     },
-    description="Fast, pure C tree structures library",
+    description="Fast, pure C trie",
     long_description = long_description,
-    keywords = "tree trie data structure",
+    keywords = "tree trie data structure dictionary",
     classifiers=CLASSIFIERS,
     license = "MIT",
     url = HOMEPAGE,
