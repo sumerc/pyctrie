@@ -1,6 +1,6 @@
 /*
 
- treez - Fast, pure C tree structures library
+ triez - Fast, pure C, succinct trie
 
  Sumer Cip 2014
 
@@ -10,7 +10,7 @@
 #include "trie.h"
 
 // globals
-static PyObject *TreezError;
+static PyObject *TriezError;
 
 // defines
 
@@ -43,18 +43,18 @@ void *_get_trie_from_args(PyObject *args)
     }
     return result;
 err:
-    PyErr_SetString(TreezError, "trie cannot be retrieved from args.");
+    PyErr_SetString(TriezError, "trie cannot be retrieved from args.");
     return NULL;
 }
 
-static PyObject* treez_trie_create(PyObject *self, PyObject *args)
+static PyObject* triez_trie_create(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     
     tr = trie_create();
     //print_PTR(tr);
     if (!tr) {
-        PyErr_SetString(TreezError, "trie cannot be initialized.");
+        PyErr_SetString(TriezError, "trie cannot be initialized.");
         return NULL;
     }
     
@@ -63,7 +63,7 @@ static PyObject* treez_trie_create(PyObject *self, PyObject *args)
 
 
 
-static PyObject* treez_trie_destroy(PyObject *self, PyObject *args)
+static PyObject* triez_trie_destroy(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     
@@ -77,7 +77,7 @@ static PyObject* treez_trie_destroy(PyObject *self, PyObject *args)
     Py_RETURN_NONE;
 }
 
-static PyObject* treez_trie_mem_usage(PyObject *self, PyObject *args)
+static PyObject* triez_trie_mem_usage(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     
@@ -89,7 +89,7 @@ static PyObject* treez_trie_mem_usage(PyObject *self, PyObject *args)
     return Py_BuildValue("l", trie_mem_usage(tr));
 }
 
-static PyObject* treez_trie_node_count(PyObject *self, PyObject *args)
+static PyObject* triez_trie_node_count(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     
@@ -102,7 +102,7 @@ static PyObject* treez_trie_node_count(PyObject *self, PyObject *args)
 }
 
 
-static PyObject* treez_trie_search(PyObject *self, PyObject *args)
+static PyObject* triez_trie_search(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     trie_key_t k;
@@ -112,13 +112,13 @@ static PyObject* treez_trie_search(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TreezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "invalid argument list.");
         return NULL;
     }
     
     tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
     if (!tr) {
-        PyErr_SetString(TreezError, "invalid trie.");
+        PyErr_SetString(TriezError, "invalid trie.");
         return NULL;
     }
     
@@ -128,12 +128,12 @@ static PyObject* treez_trie_search(PyObject *self, PyObject *args)
     if (!nd) {
         Py_RETURN_NONE;
     }
-
+    
     Py_XINCREF((PyObject *)nd->value);
     return (PyObject *)nd->value;
 }
 
-static PyObject* treez_trie_add(PyObject *self, PyObject *args)
+static PyObject* triez_trie_add(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     trie_key_t k;
@@ -142,13 +142,13 @@ static PyObject* treez_trie_add(PyObject *self, PyObject *args)
     PyObject *caps;
     
     if (!PyArg_ParseTuple(args, "Ou#u", &caps, &key, &key_size, &val)) {
-        PyErr_SetString(TreezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "invalid argument list.");
         return NULL;
     }
     
     tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
     if (!tr) {
-        PyErr_SetString(TreezError, "invalid trie.");
+        PyErr_SetString(TriezError, "invalid trie.");
         return NULL;
     }
     
@@ -156,14 +156,14 @@ static PyObject* treez_trie_add(PyObject *self, PyObject *args)
     k.len = key_size;
     if (!trie_add(tr, &k, (uintptr_t)Py_BuildValue("u", val)))
     {
-        PyErr_SetString(TreezError, "key cannot be added.");
+        PyErr_SetString(TriezError, "key cannot be added.");
         return NULL;
     }
     
     Py_RETURN_TRUE;
 }
 
-static PyObject* treez_trie_delete(PyObject *self, PyObject *args)
+static PyObject* triez_trie_delete(PyObject *self, PyObject *args)
 {
     trie_t *tr;
     trie_key_t k;
@@ -172,13 +172,13 @@ static PyObject* treez_trie_delete(PyObject *self, PyObject *args)
     int key_size;
     
     if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TreezError, "invalid argument list.");
+        PyErr_SetString(TriezError, "invalid argument list.");
         return NULL;
     }
     
     tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
     if (!tr) {
-        PyErr_SetString(TreezError, "invalid trie.");
+        PyErr_SetString(TriezError, "invalid trie.");
         return NULL;
     }
     
@@ -192,26 +192,26 @@ static PyObject* treez_trie_delete(PyObject *self, PyObject *args)
     Py_RETURN_TRUE;
 }
 
-static PyMethodDef _treez_methods[] = {
+static PyMethodDef _triez_methods[] = {
     // trie methods 
-    {"trie_create", treez_trie_create, METH_VARARGS, NULL},
-    {"trie_destroy", treez_trie_destroy, METH_VARARGS, NULL},
-    {"trie_mem_usage", treez_trie_mem_usage, METH_VARARGS, NULL},
-    {"trie_node_count", treez_trie_node_count, METH_VARARGS, NULL},
-    {"trie_search", treez_trie_search, METH_VARARGS, NULL},
-    {"trie_add", treez_trie_add, METH_VARARGS, NULL},
-    {"trie_delete", treez_trie_delete, METH_VARARGS, NULL},
+    {"trie_create", triez_trie_create, METH_VARARGS, NULL},
+    {"trie_destroy", triez_trie_destroy, METH_VARARGS, NULL},
+    {"trie_mem_usage", triez_trie_mem_usage, METH_VARARGS, NULL},
+    {"trie_node_count", triez_trie_node_count, METH_VARARGS, NULL},
+    {"trie_search", triez_trie_search, METH_VARARGS, NULL},
+    {"trie_add", triez_trie_add, METH_VARARGS, NULL},
+    {"trie_delete", triez_trie_delete, METH_VARARGS, NULL},
     {NULL, NULL}      /* sentinel */
 };
 
 #ifdef IS_PY3K
-PyDoc_STRVAR(_treez__doc__, "Fast, efficient tree structures");
-static struct PyModuleDef _treez_module = {
+PyDoc_STRVAR(_triez__doc__, "Fast, pure C, succinct trie");
+static struct PyModuleDef _triez_module = {
     PyModuleDef_HEAD_INIT,
-    "_treez",
-    _treez__doc__,
+    "_triez",
+    _triez__doc__,
     -1,
-    _treez_methods,
+    _triez_methods,
     NULL,
     NULL,
     NULL,
@@ -221,28 +221,28 @@ static struct PyModuleDef _treez_module = {
 
 PyMODINIT_FUNC
 #ifdef IS_PY3K
-PyInit__treez(void)
+PyInit__triez(void)
 #else
-init_treez(void)
+init_triez(void)
 #endif
 {
     PyObject *m;    
 
 #ifdef IS_PY3K
-    m = PyModule_Create(&_treez_module);
+    m = PyModule_Create(&_triez_module);
     if (m == NULL)
         return NULL;
 #else
-    m = Py_InitModule("_treez",  _treez_methods);
+    m = Py_InitModule("_triez",  _triez_methods);
     if (m == NULL)
         return;
 #endif
 
-    TreezError = PyErr_NewException("_treez.error", NULL, NULL);
-    PyDict_SetItemString(PyModule_GetDict(m), "error", TreezError);
+    TriezError = PyErr_NewException("_triez.error", NULL, NULL);
+    PyDict_SetItemString(PyModule_GetDict(m), "error", TriezError);
 
     if (!_initialize()) {
-        PyErr_SetString(TreezError, "Treez cannot be initialized.");
+        PyErr_SetString(TriezError, "triez module cannot be initialized.");
 #ifdef IS_PY3K
         return NULL;
 #else

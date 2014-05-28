@@ -2,6 +2,7 @@
 #define YCONFIG_H
 
 #include "Python.h"
+#include "capsulethunk.h"
 
 #define TRIE_CHAR Py_UNICODE
 
