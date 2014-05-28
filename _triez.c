@@ -129,7 +129,7 @@ static PyObject* triez_trie_search(PyObject *self, PyObject *args)
         Py_RETURN_NONE;
     }
     
-    Py_XINCREF((PyObject *)nd->value);
+    Py_INCREF((PyObject *)nd->value);
     return (PyObject *)nd->value;
 }
 
@@ -141,7 +141,7 @@ static PyObject* triez_trie_add(PyObject *self, PyObject *args)
     Py_UNICODE *key,*val;
     PyObject *caps;
     
-    if (!PyArg_ParseTuple(args, "Ou#u", &caps, &key, &key_size, &val)) {
+    if (!PyArg_ParseTuple(args, "Ou#O", &caps, &key, &key_size, &val)) {
         PyErr_SetString(TriezError, "invalid argument list.");
         return NULL;
     }
@@ -154,7 +154,8 @@ static PyObject* triez_trie_add(PyObject *self, PyObject *args)
     
     k.s = key;
     k.len = key_size;
-    if (!trie_add(tr, &k, (uintptr_t)Py_BuildValue("u", val)))
+    Py_INCREF(val);
+    if (!trie_add(tr, &k, (uintptr_t)val))
     {
         PyErr_SetString(TriezError, "key cannot be added.");
         return NULL;

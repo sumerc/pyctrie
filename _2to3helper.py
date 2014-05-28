@@ -12,7 +12,9 @@ def is_str(s):
     return True
     
 def uni(s):
-    if not _is_py3k:
+    if _is_py3k:
+        s = str(s)
+    else:
         s = unicode(s)
     return s
     

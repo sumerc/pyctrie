@@ -26,7 +26,7 @@ class Trie(object):
     
     def add(self, key, val):
         key = self._chk_and_get_key(key)
-        val = uni(val)
+        #val = uni(val)
         _triez.trie_add(self._t, key, val)
     
     def search(self, key):
