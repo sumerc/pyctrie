@@ -1,9 +1,9 @@
 import sys
 
-_py3 = (sys.version_info >= (3, 0))
+_is_py3k = (sys.version_info >= (3, 0))
 
 def is_str(s):
-    if _py3:
+    if _is_py3k:
         if not isinstance(s, str):
             return False
     else:            
@@ -12,7 +12,10 @@ def is_str(s):
     return True
     
 def uni(s):
-    if not _py3:
+    if not _is_py3k:
         s = unicode(s)
     return s
+    
+def is_py3k():
+    return _is_py3k
     

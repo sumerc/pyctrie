@@ -6,7 +6,7 @@ trie_node_t *_node_create(TRIE_CHAR key, uintptr_t value)
 {
     trie_node_t *nd;
 
-    nd = (trie_node_t *)malloc(sizeof(trie_node_t));
+    nd = (trie_node_t *)TRIE_MALLOC(sizeof(trie_node_t));
     if (nd) {
         nd->key = key;
         nd->value = value;
@@ -18,14 +18,14 @@ trie_node_t *_node_create(TRIE_CHAR key, uintptr_t value)
 
 void _node_delete(trie_node_t *nd)
 {
-    free(nd);
+    TRIE_FREE(nd);
 }
 
 trie_t *trie_create(void)
 {
     trie_t *t;
 
-    t = (trie_t *)malloc(sizeof(trie_t));
+    t = (trie_t *)TRIE_MALLOC(sizeof(trie_t));
     if (t) {
         t->root = _node_create((TRIE_CHAR)0, (uintptr_t)0); // root is a dummy node
         t->node_count = 1;
@@ -56,7 +56,7 @@ void trie_destroy(trie_t *t)
         t->node_count--;
     }
 
-    free(t);
+    TRIE_FREE(t);
 }
 
 unsigned long trie_mem_usage(trie_t *t)
@@ -287,8 +287,8 @@ trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index)
 { 
     trie_key_t *pdk;
 
-    pdk = (trie_key_t *)malloc(sizeof(trie_key_t));
-    pdk->s = (TRIE_CHAR *)malloc(len*sizeof(TRIE_CHAR));
+    pdk = (trie_key_t *)TRIE_MALLOC(sizeof(trie_key_t));
+    pdk->s = (TRIE_CHAR *)TRIE_MALLOC(len*sizeof(TRIE_CHAR));
     pdk->len = len;
     pdk->next = src->next;
     memcpy(pdk->s, src->s, index);
@@ -300,8 +300,8 @@ trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index)
 
 void FREE_KEY(trie_key_t *src) 
 { 
-    free(src->s);
-    free(src);
+    TRIE_FREE(src->s);
+    TRIE_FREE(src);
     _key_count--;
 }
 
@@ -688,7 +688,6 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
 
                     p = p->next;
                 }
-                
                 
                 // alteration (prefix + x + suffix[1:])
                 p = prefix->children;

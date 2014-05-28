@@ -7,6 +7,7 @@ class TestBasic(unittest.TestCase):
         trie = triez.Trie()
         print(trie.node_count())
         trie.add("SUPO", 14)
+        trie.add("SUPO", 15)
         print(trie.node_count())
         
         res = trie.search("SUPO")

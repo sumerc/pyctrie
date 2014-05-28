@@ -5,6 +5,8 @@
 #include "capsulethunk.h"
 
 #define TRIE_CHAR Py_UNICODE
+#define TRIE_MALLOC PyMem_Malloc
+#define TRIE_FREE PyMem_Free
 
 #if defined(MS_WINDOWS)
 #define _WINDOWS
