@@ -2,6 +2,9 @@
 #include "trie.h"
 #include "string.h"
 
+// TODO: Do not call memcpy on one-char copy's for some of the edit distance 
+// calculations. 
+
 trie_node_t *_node_create(TRIE_CHAR key, uintptr_t value)
 {
     trie_node_t *nd;
@@ -29,6 +32,7 @@ trie_t *trie_create(void)
     if (t) {
         t->root = _node_create((TRIE_CHAR)0, (uintptr_t)0); // root is a dummy node
         t->node_count = 1;
+        t->item_count = 0;
     }
     return t;
 }
@@ -137,6 +141,9 @@ int trie_add(trie_t *t, trie_key_t *key, uintptr_t value)
         i++;
     }
     
+    if (!parent->value) {
+        t->item_count++;
+    }
     parent->value = value;
     return 1;
 }
@@ -207,6 +214,7 @@ int trie_del(trie_t *t, trie_key_t *key)
         klen--;
     }
 
+    t->item_count--;
     return 1;
 }
 
@@ -277,11 +285,12 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
         curr = it;
     }
     t->root->children = prev;
+    if (found) {
+        t->item_count--;
+    }
 
     return found;
 }
-
-static size_t _key_count = 0;
 
 trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index) 
 { 
@@ -292,9 +301,6 @@ trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index)
     pdk->len = len;
     pdk->next = src->next;
     memcpy(pdk->s, src->s, index);
-
-    _key_count++;
-
     return pdk;
 }
 
@@ -302,7 +308,6 @@ void FREE_KEY(trie_key_t *src)
 { 
     TRIE_FREE(src->s);
     TRIE_FREE(src);
-    _key_count--;
 }
 
 void PUT(trie_key_t **q, trie_key_t *e)
@@ -386,6 +391,51 @@ trie_key_t * POP(trie_key_t **k)
     *k = (*k)->next;
     return r;
 }
+
+void _allprefixesR1WT(trie_node_t *nd, trie_key_t *key, size_t max_length, size_t depth, trie_t *suggestions)
+{
+    trie_node_t *p;
+
+    if (nd->value) {
+        trie_add(suggestions, key, 1);
+    }
+
+    if (depth == 0) {
+        return; // do not go further
+    }
+    
+    p = nd->children;
+    while(p){
+        key->len=max_length-depth+1;
+        key->s[key->len-1] = p->key;
+
+        _allprefixesR1WT(p, key, max_length, depth-1, suggestions);
+        
+        p = p->next;
+    }
+}
+
+void autocompleteR1WT(trie_t *t, trie_key_t *key, size_t max_depth, trie_t **suggestions)
+{
+    trie_key_t *kp;
+    trie_node_t *prefix;
+    size_t max_length;
+
+    prefix = trie_prefix(t->root, key);
+    if (!prefix) {
+        return;
+    }
+
+    *suggestions = trie_create();
+    if (!*suggestions) {
+        return;
+    }
+
+    max_length = key->len + max_depth;
+    kp = DUP_KEY(key, max_length, key->len);
+    kp->len = key->len;
+    _allprefixesR1WT(prefix, kp, max_length, max_depth, *suggestions);
+}
                
 // Candidates added to a list for each step and called recursively at the end.
 // Complexity: O(m^d), m = string length, d = edit distance
@@ -396,13 +446,21 @@ void _suggestR1(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **s
     trie_key_t *kp,*candidate,*pcandidates;
     trie_node_t *prefix,*p;
 
-    klen = key->len;    
-    candidates.s = NULL; candidates.len = 0; candidates.next = &candidates;
+    klen = key->len;
+    candidates.s = NULL; candidates.len = 0; candidates.next = &candidates; pcandidates = &candidates;
+    
+    // search prefix 
+    prefix = t->root;
+    if (ki > 0) {
+        pk.s = key->s; pk.len = ki; pk.next = NULL;
+        prefix = trie_prefix(t->root, &pk);
+        if (!prefix) {
+            return;
+        }
+    }
 
-    pcandidates = &candidates;
-    pk.s = key->s; pk.len = ki; pk.next = NULL;
-    prefix = trie_prefix(t->root, &pk);
-    if ((ki >= klen) || (cd == 0) || (!prefix)) {
+    // check bounds/depth
+    if ((ki >= klen) || (cd == 0)) {
         return;
     }
     
@@ -575,7 +633,114 @@ void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sug
     _suggestR2(t, key, 0, max_distance, suggestions);           
 }
 
-// Iterative version. However, different than above.
+void _suggestR2WT(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_t *suggestions)
+{
+    size_t klen;    
+    trie_key_t pk;
+    trie_node_t *prefix,*p;
+    TRIE_CHAR ch;
+    
+    // search prefix 
+    prefix = t->root;
+    if (ki > 0) {
+        pk.s = key->s; pk.len = ki; pk.next = NULL;
+        prefix = trie_prefix(t->root, &pk);
+        if (!prefix) {
+            return;
+        }
+    }
+    
+    // search suffix (which will complete the search for the full key)
+    klen = key->len;    
+    pk.s = &key->s[ki]; pk.len = klen-ki; pk.next = NULL;
+    p = trie_prefix(prefix, &pk);    
+    if (p && p->value) {
+        trie_add(suggestions, key, 1);
+    }
+    
+    // check bounds/depth
+    if ((ki >= klen) || (cd == 0)) {
+        return;
+    }
+
+    // deletion (prefix + suffix[1:])
+    if (klen > 1){
+
+        key->len -= 1;
+        ch = key->s[ki];
+        memcpy(&key->s[ki], &key->s[ki+1], key->len-ki);
+
+        _suggestR2WT(t, key, 0, cd-1, suggestions);
+        
+        // rollback
+        key->len += 1;
+        memcpy(&key->s[ki+1], &key->s[ki], key->len-ki);
+        key->s[ki] = ch;
+    }
+
+    // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
+    if (ki < klen-1) {
+
+        ch = key->s[ki];
+        key->s[ki] = key->s[ki+1];
+        key->s[ki+1] = ch;
+
+        _suggestR2WT(t, key, 0, cd-1, suggestions);
+        
+        // rollback
+        ch = key->s[ki+1];
+        key->s[ki+1] = key->s[ki];
+        key->s[ki] = ch;
+    }
+
+                         
+    // insertion (prefix + x + suffix[:])
+    p = prefix->children;
+    while(p){
+        key->len += 1;
+        memcpy(&key->s[ki+1], &key->s[ki], key->len-ki);
+        key->s[ki] = p->key;
+
+        _suggestR2WT(t, key, 0, cd-1, suggestions);
+        
+        // rollback
+        key->len -= 1;
+        memcpy(&key->s[ki], &key->s[ki+1], key->len-ki);
+        
+        p = p->next;
+    }
+    
+    // alteration (prefix + x + suffix[1:])
+    p = prefix->children;
+    while(p){
+        ch = key->s[ki];
+        key->s[ki] = p->key;
+        
+        _suggestR2WT(t, key, 0, cd-1, suggestions);
+        
+        // rollback
+        key->s[ki] = ch;
+
+        p = p->next;
+    }
+
+    _suggestR2WT(t, key, ki+1, cd, suggestions);
+}
+       
+void suggestR2WT(trie_t *t, trie_key_t *key, size_t max_distance, trie_t **suggestions)
+{
+    trie_key_t *kp;
+
+    *suggestions = trie_create();
+    if (!*suggestions) {
+        return;
+    }
+
+    kp = DUP_KEY(key, key->len + max_distance, key->len);
+    kp->len = key->len;
+    
+    _suggestR2WT(t, kp, 0, max_distance, *suggestions);
+}
 // This is _30x_ times slower than the recursive versions. This is because,
 // we add the items to be processed to the queue until distance is reached due to the nature 
 // of the queue structure. In recursive functions, OTOH, items are processed once edit_distance
@@ -604,9 +769,15 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
             if (trie_search(t, k))
             {
                 kp = DUP_KEY(k, k->len, k->len);
-                if (!PUT_UNIQUE(suggestions, kp)) {
-                    FREE_KEY(kp);
-                }
+                //if (!PUT(suggestions, kp)) {
+                //    FREE_KEY(kp);
+                //}
+                PUT(suggestions, kp);
+            }
+
+            if(max_distance == 0) {
+                FREE_KEY(k);
+                continue;
             }
 
             prefix = t->root;
@@ -627,20 +798,8 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
 
                     memcpy(&kp->s[ki], &k->s[ki+1], klen-ki-1);
                     
-                    if(max_distance == 1) {
-                        if (trie_search(t, kp))
-                        {   
-                            if (!PUT_UNIQUE(suggestions, kp)) {
-                                FREE_KEY(kp);
-                            }
-                        } else {
-                            FREE_KEY(kp);
-                        }
-
-                    } else {
-                        PUT(&q, kp);
-                        cs++;
-                    }
+                    PUT(&q, kp);
+                    cs++;
                 }
                 
                 // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
@@ -651,18 +810,8 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki+1], &k->s[ki], 1);
                     memcpy(&kp->s[ki+2], &k->s[ki+2], klen-ki-2);
                                        
-                    if(max_distance == 1) {
-                        if (trie_search(t, kp)) {   
-                            if (!PUT_UNIQUE(suggestions, kp)) {
-                                FREE_KEY(kp);
-                            }
-                        } else {
-                            FREE_KEY(kp);
-                        }
-                    } else {
-                        PUT(&q, kp);
-                        cs++;
-                    }
+                    PUT(&q, kp);
+                    cs++;
                 }
 
                 // insertion (prefix + x + suffix[:])
@@ -673,21 +822,12 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki], klen-ki);
                                          
-                    if(max_distance == 1) {
-                        if (trie_search(t, kp)) {   
-                            if (!PUT_UNIQUE(suggestions, kp)) {
-                                FREE_KEY(kp);
-                            }
-                        } else {
-                            FREE_KEY(kp);
-                        }
-                    } else {
-                        PUT(&q, kp);
-                        cs++;
-                    }
+                    PUT(&q, kp);
+                    cs++;
 
                     p = p->next;
                 }
+                
                 
                 // alteration (prefix + x + suffix[1:])
                 p = prefix->children;
@@ -697,18 +837,9 @@ void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **sugg
                     memcpy(&kp->s[ki], &p->key, 1);
                     memcpy(&kp->s[ki+1], &k->s[ki+1], klen-ki-1);
                                          
-                    if(max_distance == 1) {
-                        if (trie_search(t, kp)) {   
-                            if (!PUT_UNIQUE(suggestions, kp)) {
-                                FREE_KEY(kp);
-                            }
-                        } else {
-                            FREE_KEY(kp);
-                        }
-                    } else {
-                        PUT(&q, kp);
-                        cs++;
-                    }
+                    PUT(&q, kp);
+                    cs++;
+
                     p = p->next;
                 }
             } 

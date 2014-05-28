@@ -21,6 +21,7 @@ typedef struct trie_node_s {
 
 typedef struct trie_s {
     unsigned long node_count;
+    unsigned long item_count;
     struct trie_node_s *root;
 } trie_t;
 
@@ -36,7 +37,9 @@ int trie_del(trie_t *t, trie_key_t *key);
 int trie_del_fast(trie_t *t, trie_key_t *key);
 void suggestR1(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions);
 void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions);
+void suggestR2WT(trie_t *t, trie_key_t *key, size_t max_distance, trie_t **suggestions);
 void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions);
 // TODO: implement auto-complete feature. Complete function?
+void autocompleteR1WT(trie_t *t, trie_key_t *key, size_t max_depth, trie_t **suggestions);
 
 #endif
