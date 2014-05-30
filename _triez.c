@@ -13,6 +13,13 @@
 static PyObject *TriezError;
 
 // defines
+#ifdef IS_PY3K
+#define PyUnicode_Len PyUnicode_GET_LENGTH
+//#define PyUnicode_AS_UNICODE PyUnicode_AS_UNICODE // TODO: Need to change this to nBYTE versions.
+#else
+#define PyUnicode_Len PyUnicode_GET_SIZE
+//#define PyUnicode_AS_UNICODE PyUnicode_AS_UNICODE
+#endif
 
 // forwards
 
@@ -28,191 +35,201 @@ void print_PTR(void *ptr)
     printf("ptr:%p\r\n", ptr);
 }
 
-void *_get_trie_from_args(PyObject *args)
+// module custom types
+typedef struct {
+    PyObject_HEAD
+    trie_t *ptrie;
+} TrieObject;
+
+static PyObject* Trie_mem_usage(TrieObject* self)
 {
-    PyObject *caps;
-    void *result;
-    
-    if (!PyArg_ParseTuple(args, "O", &caps)) {
-        goto err;
-    }
-    
-    result = PyCapsule_GetPointer(caps, NULL);
-    if(!result) {
-        goto err;
-    }
-    return result;
-err:
-    PyErr_SetString(TriezError, "trie cannot be retrieved from args.");
-    return NULL;
+    return Py_BuildValue("l", trie_mem_usage(self->ptrie));
 }
 
-static PyObject* triez_trie_create(PyObject *self, PyObject *args)
+static PyObject* Trie_node_count(TrieObject* self)
 {
-    trie_t *tr;
-    
-    tr = trie_create();
-    //print_PTR(tr);
-    if (!tr) {
-        PyErr_SetString(TriezError, "trie cannot be initialized.");
-        return NULL;
-    }
-    
-    return PyCapsule_New(tr, NULL, NULL);
+    return Py_BuildValue("l", self->ptrie->node_count);
 }
 
+static PyMethodDef Trie_methods[] = {
+    {"mem_usage", (PyCFunction)Trie_mem_usage, METH_NOARGS, 
+        "Memory usage of the trie. Used for debugging purposes."},
+    {"node_count", (PyCFunction)Trie_node_count, METH_NOARGS, 
+        "Node count of the trie. Used for debugging purposes."},
+    {NULL}  /* Sentinel */
+};
 
-
-static PyObject* triez_trie_destroy(PyObject *self, PyObject *args)
+static void Trie_dealloc(TrieObject* self)
 {
-    trie_t *tr;
-    
-    tr = (trie_t *)_get_trie_from_args(args); 
-    if(!tr) {
-        return NULL;
-    }
-    
-    trie_destroy(tr);
-    
-    Py_RETURN_NONE;
+    trie_destroy(self->ptrie);
 }
 
-static PyObject* triez_trie_mem_usage(PyObject *self, PyObject *args)
+static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-    trie_t *tr;
+    TrieObject *self;
     
-    tr = (trie_t *)_get_trie_from_args(args); 
-    if(!tr) {
-        return NULL;
+    self = (TrieObject *)type->tp_alloc(type, 0);
+    if (self != NULL) {
+        self->ptrie = trie_create();
+        if (!self->ptrie) {
+            return NULL;
+        }
     }
-    
-    return Py_BuildValue("l", trie_mem_usage(tr));
+
+    return (PyObject *)self;
 }
 
-static PyObject* triez_trie_node_count(PyObject *self, PyObject *args)
-{
-    trie_t *tr;
-    
-    tr = (trie_t *)_get_trie_from_args(args); 
-    if(!tr) {
-        return NULL;
-    }
-    
-    return Py_BuildValue("l", tr->node_count);
-}
-
-
-static PyObject* triez_trie_search(PyObject *self, PyObject *args)
-{
-    trie_t *tr;
+trie_key_t _PyUnicode_AS_TKEY(PyObject *key) 
+{   
     trie_key_t k;
-    int key_size;
-    trie_node_t *nd;
-    Py_UNICODE *key;
-    PyObject *caps;
     
-    if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
-        return NULL;
+    k.s = PyUnicode_AS_UNICODE(key);
+    k.len = PyUnicode_Len(key);
+    
+    return k;
+}
+
+/* Return 1 if `key` is in trie `op`, 0 if not, and -1 on error. */
+int Trie_contains(PyObject *op, PyObject *key)
+{
+    trie_key_t k;
+    TrieObject *mp = (TrieObject *)op;
+    
+    k = _PyUnicode_AS_TKEY(key);
+    if(!trie_search(mp->ptrie, &k)) {
+        return 0;
     }
     
-    tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
-    if (!tr) {
-        PyErr_SetString(TriezError, "invalid trie.");
-        return NULL;
-    }
+    return 1;
+}
+
+static Py_ssize_t trie_length(TrieObject *mp)
+{
+    return mp->ptrie->item_count;
+}
+
+static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
+{
+    trie_key_t k;
+    PyObject *v;
+    trie_node_t *w;
     
-    k.s = key;
-    k.len = key_size;
-    nd = trie_search(tr, &k);
-    if (!nd) {
+    k = _PyUnicode_AS_TKEY(key);        
+    w = trie_search(mp->ptrie, &k);
+    if (!w) {
         Py_RETURN_NONE;
     }
     
-    Py_INCREF((PyObject *)nd->value);
-    return (PyObject *)nd->value;
+    v = (PyObject *)w->value;
+    Py_INCREF(v);
+    
+    return v;
 }
 
-static PyObject* triez_trie_add(PyObject *self, PyObject *args)
+static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 {
-    trie_t *tr;
     trie_key_t k;
-    int key_size;
-    Py_UNICODE *key,*val;
-    PyObject *caps;
     
-    if (!PyArg_ParseTuple(args, "Ou#O", &caps, &key, &key_size, &val)) {
-        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
-        return NULL;
+    if (!PyUnicode_CheckExact(key)) {
+        PyErr_SetString(TriezError, "key must be a unicode string.");
+        return -1;
     }
     
-    tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
-    if (!tr) {
-        PyErr_SetString(TriezError, "invalid trie.");
-        return NULL;
-    }
+    printf("uni_kind:%d\r\n", PyUnicode_KIND(key));
     
-    k.s = key;
-    k.len = key_size;
-    Py_INCREF(val);
-    if (!trie_add(tr, &k, (uintptr_t)val))
-    {
-        PyErr_SetString(TriezError, "key cannot be added.");
-        return NULL;
+    k = _PyUnicode_AS_TKEY(key);
+    if (val == NULL) {
+        if (!trie_del_fast(mp->ptrie, &k)) {
+            PyErr_SetString(TriezError, "key cannot be deleted.");
+            return -1;
+        }
+    } else {
+        if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
+            PyErr_SetString(TriezError, "key cannot be added.");
+            return -1;
+        }
     }
-    
-    Py_RETURN_TRUE;
+    return 0;
 }
 
-static PyObject* triez_trie_delete(PyObject *self, PyObject *args)
-{
-    trie_t *tr;
-    trie_key_t k;
-    Py_UNICODE *key;
-    PyObject *caps;
-    int key_size;
-    
-    if (!PyArg_ParseTuple(args, "Ou#", &caps, &key, &key_size)) {
-        PyErr_SetString(TriezError, "invalid argument list. key must be a unicode string.");
-        return NULL;
-    }
-    
-    tr = (trie_t *)PyCapsule_GetPointer(caps, NULL);
-    if (!tr) {
-        PyErr_SetString(TriezError, "invalid trie.");
-        return NULL;
-    }
-    
-    k.s = key;
-    k.len = key_size;
-    if (!trie_del_fast(tr, &k))
-    {
-        Py_RETURN_FALSE;
-    }
-    
-    Py_RETURN_TRUE;
-}
+/* Hack to implement "key in trie" */
+static PySequenceMethods Trie_as_sequence = {
+    0,                              /* sq_length */
+    0,                              /* sq_concat */
+    0,                              /* sq_repeat */
+    0,                              /* sq_item */
+    0,                              /* sq_slice */
+    0,                              /* sq_ass_item */
+    0,                              /* sq_ass_slice */
+    Trie_contains,                  /* sq_contains */
+    0,                              /* sq_inplace_concat */
+    0,                              /* sq_inplace_repeat */
+};
 
-static PyMethodDef _triez_methods[] = {
-    // trie methods 
-    {"trie_create", triez_trie_create, METH_VARARGS, NULL},
-    {"trie_destroy", triez_trie_destroy, METH_VARARGS, NULL},
-    {"trie_mem_usage", triez_trie_mem_usage, METH_VARARGS, NULL},
-    {"trie_node_count", triez_trie_node_count, METH_VARARGS, NULL},
-    {"trie_search", triez_trie_search, METH_VARARGS, NULL},
-    {"trie_add", triez_trie_add, METH_VARARGS, NULL},
-    {"trie_delete", triez_trie_delete, METH_VARARGS, NULL},
+static PyMappingMethods Trie_as_mapping = {
+    (lenfunc)trie_length,           /*mp_length*/
+    (binaryfunc)trie_subscript,     /*mp_subscript*/
+    (objobjargproc)trie_ass_sub,    /*mp_ass_subscript*/
+};
+
+static PyTypeObject TrieType = {
+#ifdef IS_PY3K
+    PyVarObject_HEAD_INIT(NULL, 0)
+#else
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
+#endif
+    "_triez.Trie",             /* tp_name */
+    sizeof(TrieObject),        /* tp_basicsize */
+    0,                         /* tp_itemsize */
+    (destructor)Trie_dealloc,  /* tp_dealloc */
+    0,                         /* tp_print */
+    0,                         /* tp_getattr */
+    0,                         /* tp_setattr */
+    0,                         /* tp_reserved */
+    0,                         /* tp_repr */
+    0,                         /* tp_as_number */
+    &Trie_as_sequence,         /* tp_as_sequence */
+    &Trie_as_mapping,          /* tp_as_mapping */
+    0,                         /* tp_hash  */
+    0,                         /* tp_call */
+    0,                         /* tp_str */
+    0,                         /* tp_getattro */
+    0,                         /* tp_setattro */
+    0,                         /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,        /* tp_flags */
+    "Trie objects",            /* tp_doc */
+    0,                         /* tp_traverse */
+    0,                         /* tp_clear */
+    0,                         /* tp_richcompare */
+    0,                         /* tp_weaklistoffset */
+    0,                         /* tp_iter */
+    0,                         /* tp_iternext */
+    Trie_methods,              /* tp_methods */
+    0,                         /* tp_members */
+    0,                         /* tp_getset */
+    0,                         /* tp_base */
+    0,                         /* tp_dict */
+    0,                         /* tp_descr_get */
+    0,                         /* tp_descr_set */
+    0,                         /* tp_dictoffset */
+    0,                         /* tp_init */
+    0,                         /* tp_alloc */
+    Trie_new,                  /* tp_new */
+};
+
+static PyMethodDef Triez_methods[] = {
     {NULL, NULL}      /* sentinel */
 };
 
 #ifdef IS_PY3K
-PyDoc_STRVAR(_triez__doc__, "Fast, pure C, succinct trie");
-static struct PyModuleDef _triez_module = {
+PyDoc_STRVAR(Triez__doc__, "Fast, pure C, succinct trie");
+static struct PyModuleDef Triez_module = {
     PyModuleDef_HEAD_INIT,
-    "_triez",
-    _triez__doc__,
+    "Triez",
+    Triez__doc__,
     -1,
-    _triez_methods,
+    Triez_methods,
     NULL,
     NULL,
     NULL,
@@ -222,24 +239,30 @@ static struct PyModuleDef _triez_module = {
 
 PyMODINIT_FUNC
 #ifdef IS_PY3K
-PyInit__triez(void)
+PyInit_Triez(void)
 #else
-init_triez(void)
+initTriez(void)
 #endif
 {
-    PyObject *m;    
-
+    PyObject *m;
+    
+    if (PyType_Ready(&TrieType) < 0)
+        return NULL;
+    
 #ifdef IS_PY3K
-    m = PyModule_Create(&_triez_module);
+    m = PyModule_Create(&Triez_module);
     if (m == NULL)
         return NULL;
 #else
-    m = Py_InitModule("_triez",  _triez_methods);
+    m = Py_InitModule("Triez",  Triez_methods);
     if (m == NULL)
         return;
 #endif
-
-    TriezError = PyErr_NewException("_triez.Error", NULL, NULL);
+    
+    Py_INCREF(&TrieType);
+    PyModule_AddObject(m, "Trie", (PyObject *)&TrieType);
+    
+    TriezError = PyErr_NewException("Triez.Error", NULL, NULL);
     PyDict_SetItemString(PyModule_GetDict(m), "Error", TriezError);
     
     if (!_initialize()) {

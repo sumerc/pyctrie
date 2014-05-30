@@ -39,19 +39,19 @@ setup(name=NAME,
     author="Sumer Cip",
     author_email="sumerc@gmail.com",
     ext_modules = [Extension(
-        "_triez",
+        "Triez",
         sources = ["_triez.c", "trie.c"],
         define_macros = user_macros,
         libraries = user_libraries,
         extra_compile_args = compile_args,
         extra_link_args = link_args,
         )],
-    py_modules =  ["triez"],
-    entry_points = {
-    'console_scripts': [
-        'triez = triez:main',
-        ],
-    },
+    #py_modules =  ["triez"],
+    #entry_points = {
+    #'console_scripts': [
+    #    'triez = triez:main',
+    #    ],
+    #},
     description="Fast, pure C trie",
     long_description = long_description,
     keywords = "tree trie data structure dictionary",
