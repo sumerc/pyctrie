@@ -4,25 +4,42 @@ import unittest
 class TestBasic(unittest.TestCase):
 
     def test_basic(self):
-        print(Triez.Trie().node_count())
+    
+        self.assertEqual(Triez.Trie().node_count(), 1)
+
         tr = Triez.Trie()
-        print(tr.mem_usage())
-        tr[u"key"] = 55        
-        res = u"key" in tr        
-        print(res)
+        del tr
+        tr = Triez.Trie()
+        tr[u"key"] = 55
         
-        res = u"key2" in tr
-        print(res)
+        self.assertTrue(u"key" in tr)
+        self.assertFalse(u"ke" in tr)
+        self.assertFalse(5 in tr)
+        self.assertEqual(len(tr), 1)
+        self.assertRaises(KeyError, tr.__getitem__, 5)
         
-        res = 5 in tr
-        print(res)
+        tr[u"testing"] = 4 # a ucs1 string
+        tr[u"testing汉"] = 5 # a ucs2 string
+        tr[u"testing\N{GOTHIC LETTER AHSA}"] = 6 # a UCS4 string
         
+        self.assertEqual(tr[u"testing"], 4)
+        self.assertEqual(tr[u"testing汉"], 5)
+        self.assertEqual(tr[u"testing\N{GOTHIC LETTER AHSA}"], 6)
+        del tr[u"testing汉"]
+        self.assertRaises(KeyError, tr.__getitem__, u"testing汉")
+        try:
+            del tr[u"tes"]
+            raise Exception("KeyError should be raised here.")
+        except KeyError:
+            pass
+        try:
+            tr[5] = 54
+            raise Exception("Triez.Error should be raised here.")
+        except Triez.Error:
+            pass
+            
         
-        print(len(tr))
-        print(tr.mem_usage())
-        
-        v = tr[5]
-        print(v)
+        # TODO: use the example from Wikipedia
         
     """
     def test_basic(self):
@@ -38,21 +55,20 @@ class TestBasic(unittest.TestCase):
         self.assertTrue(trie.delete(u"tst"))
         self.assertFalse(trie.delete(u"tst"))
         
-        # TODO: use the example from Wikipedia
-    """
+        
+    
     # it seems currently dict is %5 faster than our trie.
     def test_profile(self):
         import yappi
         
         trie = Triez.Trie()
-        trie[u"testing汉"] = 5
-        trie[u"testingß"] = 6
+        trie[u"testing"] = 4 # a ucs1 string
         
         @yappi.profile()
         def _p1():
             for i in range(10000000):
-                val = trie["testing"]
-        
+                val = trie[u"testing汉"]
+                
         d = {}
         d["test_key"] = "test_val"
         
@@ -73,4 +89,4 @@ class TestBasic(unittest.TestCase):
         _p1()
         _p2()
         _p3()
-    
+    """

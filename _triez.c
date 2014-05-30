@@ -61,6 +61,7 @@ static PyMethodDef Trie_methods[] = {
 
 static void Trie_dealloc(TrieObject* self)
 {
+    //printf("destructor\r\n");
     trie_destroy(self->ptrie);
 }
 
@@ -114,10 +115,11 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
     PyObject *v;
     trie_node_t *w;
     
-    k = _PyUnicode_AS_TKEY(key);        
+    k = _PyUnicode_AS_TKEY(key);
     w = trie_search(mp->ptrie, &k);
     if (!w) {
-        Py_RETURN_NONE;
+        PyErr_SetObject(PyExc_KeyError, key);
+        return NULL;
     }
     
     v = (PyObject *)w->value;
@@ -130,20 +132,19 @@ static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 {
     trie_key_t k;
     
-    if (!PyUnicode_CheckExact(key)) {
-        PyErr_SetString(TriezError, "key must be a unicode string.");
-        return -1;
-    }
-    
-    printf("uni_kind:%d\r\n", PyUnicode_KIND(key));
-    
     k = _PyUnicode_AS_TKEY(key);
     if (val == NULL) {
         if (!trie_del_fast(mp->ptrie, &k)) {
-            PyErr_SetString(TriezError, "key cannot be deleted.");
+            PyErr_SetObject(PyExc_KeyError, key);
             return -1;
         }
     } else {
+        // only _insertion_ make Unicode checks
+        if (!PyUnicode_CheckExact(key)) {
+            PyErr_SetString(TriezError, "key must be a unicode string.");
+            return -1;
+        }
+    
         if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
             PyErr_SetString(TriezError, "key cannot be added.");
             return -1;
