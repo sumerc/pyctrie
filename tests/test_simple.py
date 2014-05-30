@@ -2,7 +2,7 @@ import Triez
 import unittest
 
 class TestBasic(unittest.TestCase):
-
+    
     def test_basic(self):
     
         self.assertEqual(Triez.Trie().node_count(), 1)
@@ -13,20 +13,27 @@ class TestBasic(unittest.TestCase):
         tr[u"key"] = 55
         
         self.assertTrue(u"key" in tr)
+        
         self.assertFalse(u"ke" in tr)
         self.assertFalse(5 in tr)
         self.assertEqual(len(tr), 1)
-        self.assertRaises(KeyError, tr.__getitem__, 5)
         
-        tr[u"testing"] = 4 # a ucs1 string
-        tr[u"testing汉"] = 5 # a ucs2 string
-        tr[u"testing\N{GOTHIC LETTER AHSA}"] = 6 # a UCS4 string
+        self.assertRaises(Triez.Error, tr.__getitem__, 5)
         
-        self.assertEqual(tr[u"testing"], 4)
-        self.assertEqual(tr[u"testing汉"], 5)
-        self.assertEqual(tr[u"testing\N{GOTHIC LETTER AHSA}"], 6)
-        del tr[u"testing汉"]
-        self.assertRaises(KeyError, tr.__getitem__, u"testing汉")
+        ucs1_string = u"testing"
+        ucs2_string = u"testing\N{ARABIC LETTER ALEF}"
+        ucs4_string = u"testing\N{GOTHIC LETTER AHSA}"
+        
+        tr[ucs1_string] = 4 
+        tr[ucs2_string] = 5 
+        tr[ucs4_string] = 6
+        
+        self.assertEqual(tr[ucs1_string], 4)
+        self.assertEqual(tr[ucs2_string], 5)
+        self.assertEqual(tr[ucs4_string], 6)
+        del tr[ucs2_string]
+        self.assertRaises(KeyError, tr.__getitem__, ucs2_string)
+        
         try:
             del tr[u"tes"]
             raise Exception("KeyError should be raised here.")
@@ -37,27 +44,22 @@ class TestBasic(unittest.TestCase):
             raise Exception("Triez.Error should be raised here.")
         except Triez.Error:
             pass
-            
         
-        # TODO: use the example from Wikipedia
-        
-    """
-    def test_basic(self):
-        trie = triez.Trie()
-        self.assertEqual(trie.node_count(), 1)
-        trie.add(u"tst", 14)
-        trie.add(u"tst", 15)
-        self.assertEqual(trie.node_count(), 4)
-        res = trie.search(u"tst")
-        self.assertEqual(res, 15)
-        res = trie.search(u"tst")
-        self.assertEqual(res, 15)
-        self.assertTrue(trie.delete(u"tst"))
-        self.assertFalse(trie.delete(u"tst"))
-        
-        
+        del tr
+        tr = Triez.Trie()
+        tr[u"A"] = 1
+        tr[u"to"] = 1
+        tr[u"tea"] = 1
+        tr[u"ted"] = 1
+        tr[u"ten"] = 1
+        tr[u"i"] = 1
+        tr[u"in"] = 1
+        tr[u"inn"] = 1        
+        self.assertEqual(tr.node_count(), 11)
     
-    # it seems currently dict is %5 faster than our trie.
+    """
+    # it seems currently dict is %15 faster than our trie. but we are 3x times faster
+    # than datrie.
     def test_profile(self):
         import yappi
         
@@ -67,7 +69,7 @@ class TestBasic(unittest.TestCase):
         @yappi.profile()
         def _p1():
             for i in range(10000000):
-                val = trie[u"testing汉"]
+                val = trie[u"testing"]
                 
         d = {}
         d["test_key"] = "test_val"

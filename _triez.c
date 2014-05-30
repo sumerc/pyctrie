@@ -13,12 +13,31 @@
 static PyObject *TriezError;
 
 // defines
-#ifdef IS_PY3K
-#define PyUnicode_Len PyUnicode_GET_LENGTH
-//#define PyUnicode_AS_UNICODE PyUnicode_AS_UNICODE // TODO: Need to change this to nBYTE versions.
+#ifdef IS_PEP393_AVAILABLE
+#define TriezUnicode PyUnicode_1BYTE_DATA
+Py_ssize_t TriezUnicode_Len(PyObject *o) {
+    // With PEP393, the internal string can be either UCS1, UCS2 or UCS4.
+    // However, we use UCS1 internally in our trie as a char type. We cannot 
+    // make this dynamic as TRIE_CHAR param is a compile time attribute. So we
+    // need to somehow detect how many UCS1 chars we have for the given Unicode
+    // string.
+    int kind;
+    Py_ssize_t len;
+    
+    kind = PyUnicode_KIND(o);
+    len = PyUnicode_GET_LENGTH(o);
+    if (kind == PyUnicode_2BYTE_KIND) {
+        //printf("2kind\r\n");
+        len *= 2;
+    } else if (kind == PyUnicode_4BYTE_KIND) {
+        //printf("4kind\r\n");
+        len *= 4;
+    } 
+    return len;
+}
 #else
-#define PyUnicode_Len PyUnicode_GET_SIZE
-//#define PyUnicode_AS_UNICODE PyUnicode_AS_UNICODE
+#define TriezUnicode PyUnicode_AS_UNICODE
+#define TriezUnicode_Len PyUnicode_GET_SIZE
 #endif
 
 // forwards
@@ -80,12 +99,35 @@ static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     return (PyObject *)self;
 }
 
-trie_key_t _PyUnicode_AS_TKEY(PyObject *key) 
+int _IsValid_Unicode(PyObject *s)
+{
+    if (!PyUnicode_Check(s)) {
+        return 0;
+    }
+    
+#ifdef IS_PEP393_AVAILABLE
+    if (PyUnicode_READY(s) == -1) {
+        return 0;
+    }
+#endif
+    
+    return 1;
+}
+
+trie_key_t _PyUnicode_AS_TKEY(PyObject *s) 
 {   
+    //int i;
     trie_key_t k;
     
-    k.s = PyUnicode_AS_UNICODE(key);
-    k.len = PyUnicode_Len(key);
+    k.s = TriezUnicode(s);
+    k.len = TriezUnicode_Len(s);
+    
+    /*
+    //TODO: Move to Triez_Unicode_debug_print()
+    printf("k->len:%d\r\n", k->len);
+    for(i=0;i<k->len;i++) {
+        printf("chr:%d\r\n", k->s[i]);
+    }*/
     
     return k;
 }
@@ -95,6 +137,10 @@ int Trie_contains(PyObject *op, PyObject *key)
 {
     trie_key_t k;
     TrieObject *mp = (TrieObject *)op;
+    
+    if (!_IsValid_Unicode(key)) {
+        return 0; // donot return exception here.
+    }
     
     k = _PyUnicode_AS_TKEY(key);
     if(!trie_search(mp->ptrie, &k)) {
@@ -115,6 +161,11 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
     PyObject *v;
     trie_node_t *w;
     
+    if (!_IsValid_Unicode(key)) {
+        PyErr_SetString(TriezError, "key must be a valid unicode string.");
+        return NULL;
+    }
+    
     k = _PyUnicode_AS_TKEY(key);
     w = trie_search(mp->ptrie, &k);
     if (!w) {
@@ -128,9 +179,15 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
     return v;
 }
 
+/* Return 0 on success, and -1 on error. */
 static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 {
     trie_key_t k;
+    
+    if (!_IsValid_Unicode(key)) {
+        PyErr_SetString(TriezError, "key must be a valid unicode string.");
+        return -1;
+    }
     
     k = _PyUnicode_AS_TKEY(key);
     if (val == NULL) {
@@ -139,12 +196,6 @@ static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
             return -1;
         }
     } else {
-        // only _insertion_ make Unicode checks
-        if (!PyUnicode_CheckExact(key)) {
-            PyErr_SetString(TriezError, "key must be a unicode string.");
-            return -1;
-        }
-    
         if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
             PyErr_SetString(TriezError, "key cannot be added.");
             return -1;
@@ -178,45 +229,45 @@ static PyTypeObject TrieType = {
     PyVarObject_HEAD_INIT(NULL, 0)
 #else
     PyObject_HEAD_INIT(NULL)
-    0,                         /*ob_size*/
+    0,                              /*ob_size*/
 #endif
-    "_triez.Trie",             /* tp_name */
-    sizeof(TrieObject),        /* tp_basicsize */
-    0,                         /* tp_itemsize */
-    (destructor)Trie_dealloc,  /* tp_dealloc */
-    0,                         /* tp_print */
-    0,                         /* tp_getattr */
-    0,                         /* tp_setattr */
-    0,                         /* tp_reserved */
-    0,                         /* tp_repr */
-    0,                         /* tp_as_number */
-    &Trie_as_sequence,         /* tp_as_sequence */
-    &Trie_as_mapping,          /* tp_as_mapping */
-    0,                         /* tp_hash  */
-    0,                         /* tp_call */
-    0,                         /* tp_str */
-    0,                         /* tp_getattro */
-    0,                         /* tp_setattro */
-    0,                         /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,        /* tp_flags */
-    "Trie objects",            /* tp_doc */
-    0,                         /* tp_traverse */
-    0,                         /* tp_clear */
-    0,                         /* tp_richcompare */
-    0,                         /* tp_weaklistoffset */
-    0,                         /* tp_iter */
-    0,                         /* tp_iternext */
-    Trie_methods,              /* tp_methods */
-    0,                         /* tp_members */
-    0,                         /* tp_getset */
-    0,                         /* tp_base */
-    0,                         /* tp_dict */
-    0,                         /* tp_descr_get */
-    0,                         /* tp_descr_set */
-    0,                         /* tp_dictoffset */
-    0,                         /* tp_init */
-    0,                         /* tp_alloc */
-    Trie_new,                  /* tp_new */
+    "_triez.Trie",                  /* tp_name */
+    sizeof(TrieObject),             /* tp_basicsize */
+    0,                              /* tp_itemsize */
+    (destructor)Trie_dealloc,       /* tp_dealloc */
+    0,                              /* tp_print */
+    0,                              /* tp_getattr */
+    0,                              /* tp_setattr */
+    0,                              /* tp_reserved */
+    0,                              /* tp_repr */
+    0,                              /* tp_as_number */
+    &Trie_as_sequence,              /* tp_as_sequence */
+    &Trie_as_mapping,               /* tp_as_mapping */
+    PyObject_HashNotImplemented,    /* tp_hash  */
+    0,                              /* tp_call */
+    0,                              /* tp_str */
+    0,                              /* tp_getattro */
+    0,                              /* tp_setattro */
+    0,                              /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT,             /* tp_flags */
+    "Trie objects",                 /* tp_doc */
+    0,                              /* tp_traverse */
+    0,                              /* tp_clear */
+    0,                              /* tp_richcompare */
+    0,                              /* tp_weaklistoffset */
+    0,                              /* tp_iter */
+    0,                              /* tp_iternext */
+    Trie_methods,                   /* tp_methods */
+    0,                              /* tp_members */
+    0,                              /* tp_getset */
+    0,                              /* tp_base */
+    0,                              /* tp_dict */
+    0,                              /* tp_descr_get */
+    0,                              /* tp_descr_set */
+    0,                              /* tp_dictoffset */
+    0,                              /* tp_init */
+    0,                              /* tp_alloc */
+    Trie_new,                       /* tp_new */
 };
 
 static PyMethodDef Triez_methods[] = {
@@ -247,8 +298,13 @@ initTriez(void)
 {
     PyObject *m;
     
-    if (PyType_Ready(&TrieType) < 0)
+    if (PyType_Ready(&TrieType) < 0) {
+#ifdef IS_PY3K
         return NULL;
+#else
+        return;
+#endif
+    }
     
 #ifdef IS_PY3K
     m = PyModule_Create(&Triez_module);
