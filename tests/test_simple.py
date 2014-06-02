@@ -57,6 +57,15 @@ class TestBasic(unittest.TestCase):
         tr[u"inn"] = 1        
         self.assertEqual(tr.node_count(), 11)
     
+    def test_refcount(self):
+        
+        class A: pass
+        tr = Triez.Trie()
+        a = A()
+        tr[u"mo"] = a
+        del a
+        self.assertTrue(isinstance(tr[u"mo"], A))
+    
     """
     # it seems currently dict is %15 faster than our trie. but we are 3x times faster
     # than datrie.

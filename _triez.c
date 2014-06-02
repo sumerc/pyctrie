@@ -196,6 +196,7 @@ static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
             return -1;
         }
     } else {
+        Py_INCREF(val);
         if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
             PyErr_SetString(TriezError, "key cannot be added.");
             return -1;
