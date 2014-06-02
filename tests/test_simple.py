@@ -64,12 +64,14 @@ class TestBasic(unittest.TestCase):
                 A._a_destructor_called = True
                 
         tr = Triez.Trie()
+        #tr = {}
         a = A()
         tr[u"mo"] = a
         del a
         self.assertTrue(isinstance(tr[u"mo"], A))
         ae = tr[u"mo"]
-        del ae # destructor should be called on this borrowed ref. 
+        del tr[u"mo"]
+        del ae
         self.assertTrue(A._a_destructor_called)
     
     """

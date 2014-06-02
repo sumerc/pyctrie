@@ -175,7 +175,7 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
     }
     
     v = (PyObject *)w->value;
-    
+    Py_INCREF(v);
     return v;
 }
 
