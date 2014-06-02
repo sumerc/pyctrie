@@ -58,13 +58,19 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(tr.node_count(), 11)
     
     def test_refcount(self):
-        
-        class A: pass
+        class A:
+            _a_destructor_called = False
+            def __del__(self):
+                A._a_destructor_called = True
+                
         tr = Triez.Trie()
         a = A()
         tr[u"mo"] = a
         del a
         self.assertTrue(isinstance(tr[u"mo"], A))
+        ae = tr[u"mo"]
+        del ae # destructor should be called on this borrowed ref. 
+        self.assertTrue(A._a_destructor_called)
     
     """
     # it seems currently dict is %15 faster than our trie. but we are 3x times faster

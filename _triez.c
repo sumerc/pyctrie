@@ -139,10 +139,11 @@ int Trie_contains(PyObject *op, PyObject *key)
     TrieObject *mp = (TrieObject *)op;
     
     if (!_IsValid_Unicode(key)) {
-        return 0; // donot return exception here.
+        return 0; // do not return exception here.
     }
     
     k = _PyUnicode_AS_TKEY(key);
+    
     if(!trie_search(mp->ptrie, &k)) {
         return 0;
     }
@@ -174,7 +175,6 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
     }
     
     v = (PyObject *)w->value;
-    Py_INCREF(v);
     
     return v;
 }
@@ -183,6 +183,7 @@ static PyObject *trie_subscript(TrieObject *mp, PyObject *key)
 static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 {
     trie_key_t k;
+    trie_node_t *w;
     
     if (!_IsValid_Unicode(key)) {
         PyErr_SetString(TriezError, "key must be a valid unicode string.");
@@ -191,10 +192,15 @@ static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
     
     k = _PyUnicode_AS_TKEY(key);
     if (val == NULL) {
-        if (!trie_del_fast(mp->ptrie, &k)) {
+        //search and dec. ref. count
+        w = trie_search(mp->ptrie, &k);
+        if(!w) {
             PyErr_SetObject(PyExc_KeyError, key);
             return -1;
         }
+        Py_DECREF((PyObject *)w->value);
+        
+        trie_del_fast(mp->ptrie, &k);// no need for ret check as we already done above.
     } else {
         Py_INCREF(val);
         if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
