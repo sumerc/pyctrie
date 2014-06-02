@@ -1,3 +1,4 @@
+import sys
 import Triez
 import unittest
 
@@ -67,11 +68,14 @@ class TestBasic(unittest.TestCase):
         #tr = {}
         a = A()
         tr[u"mo"] = a
+        self.assertEqual(sys.getrefcount(tr[u"mo"]), 3)
         del a
+        self.assertEqual(sys.getrefcount(tr[u"mo"]), 2)
         self.assertTrue(isinstance(tr[u"mo"], A))
         ae = tr[u"mo"]
-        del tr[u"mo"]
         del ae
+        self.assertEqual(sys.getrefcount(tr[u"mo"]), 2)
+        del tr[u"mo"]
         self.assertTrue(A._a_destructor_called)
     
     """
