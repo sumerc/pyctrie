@@ -19,13 +19,24 @@ int KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
     *out = (TRIE_CHAR)k->s[index*k->char_size];
     return 1;
 }
-#include "stdint.h"
 
-// TODO: I don't like below. Think more.
+
 void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index, unsigned long src_index, 
     unsigned long length) 
 {
     unsigned int i,j;
+    char *srcb, *dstb;
+    
+    // assuming dst->index + length < dst->size and 
+    // src->index + length < src->size and src->char_size == dst->char_size
+    for (i=0;i<length;i++) {
+        srcb = &src->s[(src_index+i) * src->char_size];
+        dstb = &dst->s[(dst_index+i) * dst->char_size];
+        for (j=0;j<src->char_size;j++) { // assuming dst->char_size >= src->char_size
+            dstb[j] = srcb[j];
+        }
+    }
+    
     /* 
     // Below will have endianness problems...
     char *srcb, *dstb;
@@ -40,8 +51,10 @@ void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index, unsigned 
         for (j=src->char_size;j<dst->char_size;j++) { 
             dstb[j] = 0;
         }
-    }*/
-    
+    }*/    
+    /* 
+    // Below is too hardcoded
+    #include "stdint.h"
     TRIE_CHAR v;
     
     for (i=0;i<length;i++) {
@@ -60,7 +73,7 @@ void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index, unsigned 
         } else if (dst->char_size == 4) {
             *(uint32_t *)&dst->s[i*dst->char_size] = v;
         }
-    }
+    }*/
 }
 
 

@@ -82,7 +82,7 @@ void _DebugPrintTKEY(trie_key_t k)
     }
 }
 
-trie_key_t _PyUnicode_AS_TKEY(PyObject *s) 
+trie_key_t _PyUnicode_AS_TKEY(PyObject *s)
 {   
     trie_key_t k;
     
@@ -124,6 +124,9 @@ static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
     PyObject *prefix;
     trie_key_t k;
     TrieObject *self;
+#ifdef IS_PEP393_AVAILABLE
+    Py_UCS4 *p;
+#endif
     
     self = (TrieObject *)selfobj;
     
@@ -140,13 +143,32 @@ static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
             return NULL;
         }
         
+#ifdef IS_PEP393_AVAILABLE
+        // if PEP393 is available, we try to create a UCS4 buffer from the given 
+        // string object. Some computation heavy functions in the trie manipulates 
+        // the key buffer, and so we make this conversion to simplify the process.
+        // With this conversion we can safely write from TRIE_CHAR to trie_key_t
+        // and vice versa.
+        p = PyUnicode_AsUCS4Copy(prefix);
+        if (!p) {
+            return NULL; // exception was set above. 
+        }
+        
+        k.s = (char *)p;
+        k.size = TriezUnicode_Size(prefix);
+        k.char_size = sizeof(Py_UCS4);
+#else
         k = _PyUnicode_AS_TKEY(prefix);
+#endif
     }
     
     trie_keys(self->ptrie, &k, 3, _enum_trie_keys, NULL);
     
-    Py_RETURN_NONE;
+#ifdef IS_PEP393_AVAILABLE
+    TRIE_FREE(p);
+#endif
 
+    Py_RETURN_NONE;
 }
 
 static PyMethodDef Trie_methods[] = {
