@@ -1,6 +1,6 @@
 /*
 
- triez - Fast, pure C, succinct trie
+ triez - Fast, pure C trie
 
  Sumer Cip 2014
 
@@ -14,30 +14,27 @@ static PyObject *TriezError;
 
 // defines
 #ifdef IS_PEP393_AVAILABLE
-#define TriezUnicode PyUnicode_1BYTE_DATA
-Py_ssize_t TriezUnicode_Len(PyObject *o) {
-    // With PEP393, the internal string can be either UCS1, UCS2 or UCS4.
-    // However, we use UCS1 internally in our trie as a char type. We cannot 
-    // make this dynamic as TRIE_CHAR param is a compile time attribute. So we
-    // need to somehow detect how many UCS1 chars we have for the given Unicode
-    // string.
-    int kind;
-    Py_ssize_t len;
-    
-    kind = PyUnicode_KIND(o);
-    len = PyUnicode_GET_LENGTH(o);
-    if (kind == PyUnicode_2BYTE_KIND) {
-        //printf("2kind\r\n");
-        len *= 2;
-    } else if (kind == PyUnicode_4BYTE_KIND) {
-        //printf("4kind\r\n");
-        len *= 4;
-    } 
-    return len;
-}
+#define TriezUnicode PyUnicode_DATA
+#define TriezUnicode_Size PyUnicode_GET_LENGTH
+size_t TriezUnicode_CharSize(PyObject *o) 
+{
+    switch(PyUnicode_KIND(o)) 
+    {
+        case PyUnicode_1BYTE_KIND:
+            return 1;
+        case PyUnicode_2BYTE_KIND:
+            return 2;
+        case PyUnicode_WCHAR_KIND:
+            return 2;
+        case PyUnicode_4BYTE_KIND:
+            return 4;
+    }
+    return 0;
+} 
 #else
-#define TriezUnicode PyUnicode_AS_UNICODE
-#define TriezUnicode_Len PyUnicode_GET_SIZE
+#define TriezUnicode PyUnicode_AS_DATA
+#define TriezUnicode_Size PyUnicode_GET_SIZE
+#define TriezUnicode_CharSize(o) sizeof(Py_UNICODE)
 #endif
 
 // forwards
@@ -52,6 +49,50 @@ int _initialize(void)
 void print_PTR(void *ptr)
 {
     printf("ptr:%p\r\n", ptr);
+}
+
+int _IsValid_Unicode(PyObject *s)
+{
+    if (!PyUnicode_Check(s)) {
+        return 0;
+    }
+    
+#ifdef IS_PEP393_AVAILABLE
+    if (PyUnicode_READY(s) == -1) {
+        return 0;
+    }
+#endif
+    
+    return 1;
+}
+
+void _DebugPrintTKEY(trie_key_t k)
+{
+    unsigned int i;
+    
+    printf("key->s:%s, key->size:%d, key->char_size:%d\r\n", k.s, k.size, k.char_size);
+    for(i=0;i<k.size;i++) {
+        if (k.char_size == 1) {
+            printf("char[%d]:0x%xh\r\n", i, *(char *)&k.s[i*k.char_size]);
+        } else if (k.char_size == 2) {
+            printf("char[%d]:0x%xh\n", i, *(short *)&k.s[i*k.char_size]);
+        } else if (k.char_size == 4) {
+            printf("char[%d]:0x%xh\r\n", i, *(long *)&k.s[i*k.char_size]);
+        }
+    }
+}
+
+trie_key_t _PyUnicode_AS_TKEY(PyObject *s) 
+{   
+    trie_key_t k;
+    
+    k.s = (char *)TriezUnicode(s);
+    k.size = TriezUnicode_Size(s);
+    k.char_size = TriezUnicode_CharSize(s);
+    
+    //_DebugPrintTKEY(k);
+    
+    return k;
 }
 
 // module custom types
@@ -70,11 +111,51 @@ static PyObject* Trie_node_count(TrieObject* self)
     return Py_BuildValue("l", self->ptrie->node_count);
 }
 
+int _enum_trie_keys(trie_key_t *key, void *arg)
+{
+    _DebugPrintTKEY(*key);
+    
+    // TODO: use PyUnicode_FromKindAndData here to build the string again.
+    return 1;
+}
+
+static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
+{
+    PyObject *prefix;
+    trie_key_t k;
+    TrieObject *self;
+    
+    self = (TrieObject *)selfobj;
+    
+    prefix = NULL;
+    if (!PyArg_ParseTuple(args, "|O", &prefix)) {
+        return NULL;
+    }
+    
+    if (!prefix) {
+        memset(&k, 0, sizeof(trie_key_t));
+    } else {
+        if (!_IsValid_Unicode(prefix)) {
+            PyErr_SetString(TriezError, "key must be a valid unicode string.");
+            return NULL;
+        }
+        
+        k = _PyUnicode_AS_TKEY(prefix);
+    }
+    
+    trie_keys(self->ptrie, &k, 3, _enum_trie_keys, NULL);
+    
+    Py_RETURN_NONE;
+
+}
+
 static PyMethodDef Trie_methods[] = {
     {"mem_usage", (PyCFunction)Trie_mem_usage, METH_NOARGS, 
         "Memory usage of the trie. Used for debugging purposes."},
     {"node_count", (PyCFunction)Trie_node_count, METH_NOARGS, 
         "Node count of the trie. Used for debugging purposes."},
+    {"keys", Trie_keys, METH_VARARGS, 
+        "Node count of the trie. Used for debugging purposes."},   
     {NULL}  /* Sentinel */
 };
 
@@ -97,39 +178,6 @@ static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     }
 
     return (PyObject *)self;
-}
-
-int _IsValid_Unicode(PyObject *s)
-{
-    if (!PyUnicode_Check(s)) {
-        return 0;
-    }
-    
-#ifdef IS_PEP393_AVAILABLE
-    if (PyUnicode_READY(s) == -1) {
-        return 0;
-    }
-#endif
-    
-    return 1;
-}
-
-trie_key_t _PyUnicode_AS_TKEY(PyObject *s) 
-{   
-    //int i;
-    trie_key_t k;
-    
-    k.s = TriezUnicode(s);
-    k.len = TriezUnicode_Len(s);
-    
-    /*
-    //TODO: Move to Triez_Unicode_debug_print()
-    printf("k->len:%d\r\n", k->len);
-    for(i=0;i<k->len;i++) {
-        printf("chr:%d\r\n", k->s[i]);
-    }*/
-    
-    return k;
 }
 
 /* Return 1 if `key` is in trie `op`, 0 if not, and -1 on error. */
@@ -203,7 +251,7 @@ static int trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
         trie_del_fast(mp->ptrie, &k);// no need for ret check as we already done above.
     } else {
         Py_INCREF(val);
-        if(!trie_add(mp->ptrie, &k, (uintptr_t)val)) {
+        if(!trie_add(mp->ptrie, &k, (TRIE_DATA)val)) {
             PyErr_SetString(TriezError, "key cannot be added.");
             return -1;
         }

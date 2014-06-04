@@ -4,6 +4,20 @@ import unittest
 
 class TestBasic(unittest.TestCase):
     
+    def test_temp(self):
+        tr = Triez.Trie()
+        
+        tr[u"A"] = 1
+        tr[u"to"] = 1
+        tr[u"tea"] = 1
+        tr[u"ted"] = 1
+        tr[u"ten"] = 1
+        tr[u"i"] = 1
+        tr[u"in"] = 1
+        tr[u"inn"] = 1
+        
+        print(tr.keys(u"in"))
+    
     def test_basic(self):
     
         self.assertEqual(Triez.Trie().node_count(), 1)
@@ -55,9 +69,9 @@ class TestBasic(unittest.TestCase):
         tr[u"ten"] = 1
         tr[u"i"] = 1
         tr[u"in"] = 1
-        tr[u"inn"] = 1        
+        tr[u"inn"] = 1
         self.assertEqual(tr.node_count(), 11)
-    
+        
     def test_refcount(self):
         class A:
             _a_destructor_called = False

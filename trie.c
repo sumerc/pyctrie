@@ -3,9 +3,96 @@
 #include "string.h"
 
 // TODO: Do not call memcpy on one-char copy's for some of the edit distance 
-// calculations. 
+// calculations.
 
-trie_node_t *_node_create(TRIE_CHAR key, uintptr_t value)
+void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
+{
+    // assuming k->char_size >= sizeof(TRIE_CHAR)
+    *(TRIE_CHAR *)&k->s[index*k->char_size] = in;
+}
+
+int KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
+{
+    if (index >= k->size) {
+        return 0;
+    }
+    *out = (TRIE_CHAR)k->s[index*k->char_size];
+    return 1;
+}
+#include "stdint.h"
+
+// TODO: I don't like below. Think more.
+void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index, unsigned long src_index, 
+    unsigned long length) 
+{
+    unsigned int i,j;
+    /* 
+    // Below will have endianness problems...
+    char *srcb, *dstb;
+    // assuming dst->index + length < dst->size and 
+    // src->index + length < src->size
+    for (i=0;i<length;i++) {
+        srcb = &src->s[(src_index+i) * src->char_size];
+        dstb = &dst->s[(dst_index+i) * dst->char_size];
+        for (j=0;j<src->char_size;j++) { // assuming dst->char_size >= src->char_size
+            dstb[j] = srcb[j];
+        }
+        for (j=src->char_size;j<dst->char_size;j++) { 
+            dstb[j] = 0;
+        }
+    }*/
+    
+    TRIE_CHAR v;
+    
+    for (i=0;i<length;i++) {
+        if (src->char_size == 1) {
+            v = (TRIE_CHAR)*(uint8_t *)&src->s[i*src->char_size];
+        } else if (src->char_size == 2) {
+            v = (TRIE_CHAR)*(uint16_t *)&src->s[i*src->char_size];
+        } else if (src->char_size == 4) {
+            v = (TRIE_CHAR)*(uint32_t *)&src->s[i*src->char_size];
+        }
+        //printf("fsd:%d\r\n", v);
+        if (dst->char_size == 1) {
+            *(uint8_t *)&dst->s[i*dst->char_size] = v;
+        } else if (dst->char_size == 2) {
+            *(uint16_t *)&dst->s[i*dst->char_size] = v;
+        } else if (dst->char_size == 4) {
+            *(uint32_t *)&dst->s[i*dst->char_size] = v;
+        }
+    }
+}
+
+
+trie_key_t *KEYCREATE(unsigned long length, unsigned char char_size)
+{
+    trie_key_t *k;
+    
+    k = (trie_key_t *)TRIE_MALLOC(sizeof(trie_key_t));
+    if (!k) {
+        return NULL;
+    }
+    k->s = (char *)TRIE_MALLOC(length*char_size);
+    if (!k->s) {
+        TRIE_FREE(k);
+        return NULL;
+    }
+    
+    k->size = length;
+    k->char_size = char_size;
+    k->alloc_size = length;
+    k->next = NULL;
+    
+    return k;
+}
+
+void KEYFREE(trie_key_t *src) 
+{ 
+    TRIE_FREE(src->s);
+    TRIE_FREE(src);
+}
+
+trie_node_t *_node_create(TRIE_CHAR key, TRIE_DATA value)
 {
     trie_node_t *nd;
 
@@ -30,9 +117,10 @@ trie_t *trie_create(void)
 
     t = (trie_t *)TRIE_MALLOC(sizeof(trie_t));
     if (t) {
-        t->root = _node_create((TRIE_CHAR)0, (uintptr_t)0); // root is a dummy node
+        t->root = _node_create((TRIE_CHAR)0, (TRIE_DATA)0); // root is a dummy node
         t->node_count = 1;
         t->item_count = 0;
+        t->height = 1;
     }
     return t;
 }
@@ -47,7 +135,7 @@ void trie_destroy(trie_t *t)
         parent = NULL;
         while(curr->children) {
             parent = curr;
-            curr = curr->children;         
+            curr = curr->children;
         }  
 
         if (parent) {
@@ -68,10 +156,10 @@ unsigned long trie_mem_usage(trie_t *t)
     return sizeof(trie_t) + (t->node_count * sizeof(trie_node_t));
 }
 
-trie_node_t *trie_prefix(trie_node_t *t, trie_key_t *key)
+trie_node_t *_trie_prefix(trie_node_t *t, trie_key_t *key)
 {
     TRIE_CHAR ch;
-    unsigned int i;    
+    unsigned int i;
     trie_node_t *curr, *parent;
 
     if (!t){
@@ -81,10 +169,9 @@ trie_node_t *trie_prefix(trie_node_t *t, trie_key_t *key)
     i = 0;
     parent = t; 
     curr = t->children;
-    while(i < key->len)
+    while(KEY_CHAR_READ(key, i, &ch))
     {
-        ch = key->s[i];
-        while(curr && curr->key != key->s[i]) {
+        while(curr && curr->key != ch) {
             curr = curr->next;
         }
         if (!curr) {
@@ -102,7 +189,7 @@ trie_node_t *trie_search(trie_t *t, trie_key_t *key)
 {
     trie_node_t *r;
 
-    r = trie_prefix(t->root, key);
+    r = _trie_prefix(t->root, key);
     if (r && !r->value)
     {
         return NULL;
@@ -111,23 +198,22 @@ trie_node_t *trie_search(trie_t *t, trie_key_t *key)
     return r;
 }
 
-int trie_add(trie_t *t, trie_key_t *key, uintptr_t value)
+int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
 {
     TRIE_CHAR ch;
     unsigned int i;
     trie_node_t *curr, *parent;
-    
+
     i = 0;
     parent = t->root;
     curr = t->root->children;
-    while(i < key->len)
+    while(KEY_CHAR_READ(key, i, &ch))
     {
-        ch = key->s[i];
         while(curr && curr->key != ch) {
             curr = curr->next;
         }
-        if (!curr) {            
-            curr = _node_create(ch, (uintptr_t)0);
+        if (!curr) {
+            curr = _node_create(ch, (TRIE_DATA)0);
             if (!curr){
                 return 0;
             }
@@ -144,77 +230,12 @@ int trie_add(trie_t *t, trie_key_t *key, uintptr_t value)
     if (!parent->value) {
         t->item_count++;
     }
-    parent->value = value;
-    return 1;
-}
-
-// Algorithm:  remove full-key by trying to remove one character at-a-time.
-// Complexity: O(m^2)
-int trie_del(trie_t *t, trie_key_t *key)
-{
-    TRIE_CHAR ch;
-    unsigned int i, klen;
-    trie_node_t *curr, *parent, *grand_parent, *next;
-        
-    klen = key->len;
-    while(klen)
-    {
-        i = 0;
-        next = grand_parent = NULL;
-        parent = t->root;
-        curr = t->root->children;
-        while(i < klen)
-        {
-            ch = key->s[i];
-            while(curr && curr->key != key->s[i]) {
-                curr = curr->next;
-            }
-            if (!curr) {
-                return 0;
-            }
-
-            grand_parent = parent;
-            parent = curr;
-            curr = curr->children;
-            i++;
-        }
-
-        // if full key(not a suffix) is not added, then do not 
-        // remove anything at all.
-        if (!parent->value && i == key->len) {
-            return 0;
-        }
-
-        // remove key
-        parent->value = 0;
-
-        // if no child and no val, then delete!
-        if (grand_parent && !parent->children && !parent->value)
-        {
-            if (grand_parent->children == parent) {
-                next = grand_parent->children->next;
-                _node_delete(parent);
-                grand_parent->children = next;
-            } else { // node is in the next list of children
-                curr = grand_parent->children;
-                while(curr->next)
-                {
-                    if (curr->next == parent)
-                    {
-                        curr->next = parent->next;
-                        _node_delete(parent);
-                        break;
-                    }
-                    curr = curr->next;
-                }
-            }
-
-            t->node_count--;
-        }
-        klen--;
+    
+    if (key->size > t->height) {
+        t->height = key->size;
     }
-
-    t->item_count--;
+    
+    parent->value = value;
     return 1;
 }
 
@@ -227,16 +248,17 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
 {
     unsigned int i, found;
     trie_node_t *curr, *prev, *it, *parent;
+    TRIE_CHAR ch;
 
     // iterate forward and reverse the linked-list
     found = 1;
     i = 0;
     parent = t->root;
     curr = t->root->children;
-    while(i < key->len)
+    while(KEY_CHAR_READ(key, i, &ch))
     {
         prev = it = curr;
-        while(it && it->key != key->s[i]) {
+        while(it && it->key != ch) {
             prev = it;
             it=it->next;
         }
@@ -261,7 +283,7 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
     found = found && parent->value; 
 
     // remove key
-    if (found) {       
+    if (found) {
         parent->value = 0;
     } 
 
@@ -274,11 +296,11 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
         curr->children = prev; 
 
         // no-child and no-val and item is added/found?
-        if (found && !curr->children && !curr->value) {            
-            // we know curr == it->children as we move it to head before.            
+        if (found && !curr->children && !curr->value) {
+            // we know curr == it->children as we move it to head before.
             prev = curr->next;
             _node_delete(curr);
-            t->node_count--;         
+            t->node_count--;
         } else {
             prev = curr;
         }
@@ -292,368 +314,92 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
     return found;
 }
 
-trie_key_t *DUP_KEY(trie_key_t *src, size_t len, size_t index) 
-{ 
-    trie_key_t *pdk;
-
-    pdk = (trie_key_t *)TRIE_MALLOC(sizeof(trie_key_t));
-    pdk->s = (TRIE_CHAR *)TRIE_MALLOC(len*sizeof(TRIE_CHAR));
-    pdk->len = len;
-    pdk->next = src->next;
-    memcpy(pdk->s, src->s, index);
-    return pdk;
-}
-
-void FREE_KEY(trie_key_t *src) 
-{ 
-    TRIE_FREE(src->s);
-    TRIE_FREE(src);
-}
-
-void PUT(trie_key_t **q, trie_key_t *e)
+void _trie_keys(trie_node_t *v, trie_key_t *key, unsigned long depth, 
+    trie_enum_func_t efn, void *arg, int *stop)
 {
-    e->next = (*q)->next;
-    (*q)->next = e;
-    *q = e;
-}
-
-int PUT_UNIQUE(trie_key_t **q, trie_key_t *e)
-{
-    trie_key_t *p,*next;
-
-    p = (*q);
-    while(p) {
-        next = p->next;
-        if (e->len == p->len) {
-            if (memcmp(p->s, e->s, p->len) == 0) {
-                return 0;
-            }
-        }
-        if (next == (*q))
-        {
-            break;
-        }
-        p = next;
-    }   
-    PUT(q, e);
-    return 1;
-}
-
-trie_key_t *GET(trie_key_t **q)
-{
-    trie_key_t *head,*result;
-
-    head = (*q)->next; result = head->next;
-    if (head->next == *q) { // last elem
-        head->next = (*q)->next;
-        *q = (*q)->next;
-    } else {
-        head->next = head->next->next;
-    }
-    return result;
-}
-
-void PUSH(trie_key_t **k, trie_key_t *e)
-{
-    e->next = (*k);
-    *k = e;
-}
-
-int PUSH_UNIQUE(trie_key_t **k, trie_key_t *e)
-{
-    trie_key_t *p,*next;
-
-    p = *k;
-    while(p) {
-        next = p->next;
-
-        if (e->len == p->len) {
-            if (memcmp(p->s, e->s, p->len) == 0) {
-                return 0;
-            }
-        }
-
-        if (next == (*k))
-        {
-            break;
-        }
-        p = next;
-    }
-    PUSH(k, e);
-    return 1;
-}
-
-trie_key_t * POP(trie_key_t **k)
-{
-    trie_key_t *r;
-
-    r = *k;
-    *k = (*k)->next;
-    return r;
-}
-
-void _allprefixesR1WT(trie_node_t *nd, trie_key_t *key, size_t max_length, size_t depth, trie_t *suggestions)
-{
+    int rc;
     trie_node_t *p;
+    
+    if(*stop)
+        return;
 
-    if (nd->value) {
-        trie_add(suggestions, key, 1);
+    if (v->value) {
+        rc = efn(key, arg);
+        if(!rc) {
+            *stop = 1;
+            return;
+        }
     }
 
     if (depth == 0) {
         return; // do not go further
     }
     
-    p = nd->children;
+    p = v->children;
     while(p){
-        key->len=max_length-depth+1;
-        key->s[key->len-1] = p->key;
-
-        _allprefixesR1WT(p, key, max_length, depth-1, suggestions);
+        key->size = key->alloc_size - depth + 1;
+        KEY_CHAR_WRITE(key, key->size-1, p->key);
+        //printf("%d\r\n", key->s[key->size-1]);
+        
+        _trie_keys(p, key, depth-1, efn, arg, stop);
         
         p = p->next;
     }
 }
 
-void autocompleteR1WT(trie_t *t, trie_key_t *key, size_t max_depth, trie_t **suggestions)
+// if key is empty (key->size==0) then start enum from root.
+void trie_keys(trie_t *t, trie_key_t *key, unsigned long max_depth,
+    trie_enum_func_t efn, void *arg)
 {
     trie_key_t *kp;
     trie_node_t *prefix;
-    size_t max_length;
-
-    prefix = trie_prefix(t->root, key);
-    if (!prefix) {
-        return;
-    }
-
-    *suggestions = trie_create();
-    if (!*suggestions) {
-        return;
-    }
-
-    max_length = key->len + max_depth;
-    kp = DUP_KEY(key, max_length, key->len);
-    kp->len = key->len;
-    _allprefixesR1WT(prefix, kp, max_length, max_depth, *suggestions);
-}
-               
-// Candidates added to a list for each step and called recursively at the end.
-// Complexity: O(m^d), m = string length, d = edit distance
-void _suggestR1(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **suggestions)
-{
-    size_t klen;    
-    trie_key_t pk,candidates; 
-    trie_key_t *kp,*candidate,*pcandidates;
-    trie_node_t *prefix,*p;
-
-    klen = key->len;
-    candidates.s = NULL; candidates.len = 0; candidates.next = &candidates; pcandidates = &candidates;
+    unsigned long max_length;
+    int stop;
     
-    // search prefix 
     prefix = t->root;
-    if (ki > 0) {
-        pk.s = key->s; pk.len = ki; pk.next = NULL;
-        prefix = trie_prefix(t->root, &pk);
-        if (!prefix) {
-            return;
-        }
-    }
-
-    // check bounds/depth
-    if ((ki >= klen) || (cd == 0)) {
-        return;
-    }
-    
-    // deletion (prefix + suffix[1:])
-    if (klen > 1){
-        kp = DUP_KEY(key, klen-1, ki); 
-
-        memcpy(&kp->s[ki], &key->s[ki+1], klen-ki-1);
-
-        PUT(&pcandidates, kp);
-    }
-
-    // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
-    if (ki < klen-1) {
-        kp = DUP_KEY(key, klen, ki);
-
-        memcpy(&kp->s[ki], &key->s[ki+1], 1);
-        memcpy(&kp->s[ki+1], &key->s[ki], 1);
-        memcpy(&kp->s[ki+2], &key->s[ki+2], klen-ki-2);
-
-        PUT(&pcandidates, kp);
-    }
-                             
-    // insertion (prefix + x + suffix[:])
-    p = prefix->children;
-    while(p){
-        kp = DUP_KEY(key, klen+1, ki);
-
-        memcpy(&kp->s[ki], &p->key, 1);
-        memcpy(&kp->s[ki+1], &key->s[ki], klen-ki);
-
-        PUT(&pcandidates, kp);
-
-        p = p->next;
-    }
-    
-    // alteration (prefix + x + suffix[1:])
-    p = prefix->children;
-    while(p){
-        kp = DUP_KEY(key, klen, ki);
-
-        memcpy(&kp->s[ki], &p->key, 1);
-        memcpy(&kp->s[ki+1], &key->s[ki+1], klen-ki-1);
-
-        PUT(&pcandidates, kp);
-
-        p = p->next;
-    }
-
-    // check for duplicates and update suggestions
-    candidate = GET(&pcandidates);
-    while(candidate != pcandidates)
-    {
-        _suggestR1(t, candidate, 0, cd-1, suggestions);
-
-        // we already searched for the prefix so only search for the suffix[:]
-        pk.s = &candidate->s[ki]; pk.len = candidate->len-ki; pk.next = NULL;
-        p = trie_prefix(prefix, &pk);
-        if (p && p->value) {
-            if (!PUT_UNIQUE(suggestions, candidate)) {
-                FREE_KEY(candidate);
-            }             
-        } else {
-            FREE_KEY(candidate);
-        }
-        candidate = GET(&pcandidates);
-    }
-
-    _suggestR1(t, key, ki+1, cd, suggestions);
-
-}
-
-void suggestR1(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
-{
-    _suggestR1(t, key, 0, max_distance, suggestions);           
-}
-
-// Each candidate is called recursively. 
-// Currently fastest: as we don'm t use any auxiliary queue to hold the candidates. And we
-// possibly have a better cache behavior.
-// Complexity: O(m^d), m = string length, d = edit distance
-void _suggestR2(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_key_t **suggestions)
-{
-    size_t klen;    
-    trie_key_t pk; 
-    trie_key_t *kp;
-    trie_node_t *prefix,*p;
-    
-    // search prefix first (we will need the pointer for the edit ops below.)
-    prefix = t->root;
-    if (ki > 0) {
-        pk.s = key->s; pk.len = ki; pk.next = NULL;
-        prefix = trie_prefix(t->root, &pk);
+    if (key->size) {
+        prefix = _trie_prefix(t->root, key);
         if (!prefix) {
             return;
         }
     }
     
-    // search suffix (which will complete the search for the full key)
-    klen = key->len;    
-    pk.s = &key->s[ki]; pk.len = klen-ki; pk.next = NULL;
-    p = trie_prefix(prefix, &pk);    
-    if (p && p->value) {
-        kp = DUP_KEY(key, klen, klen);
-        if (!PUT_UNIQUE(suggestions, kp)) {
-            FREE_KEY(kp);
-        }
-    }
+    // this key buffer should be able to hold any char in the trie, so char_size
+    // should be TRIE_CHAR.
+    max_length = key->size + max_depth;
+    kp = KEYCREATE(max_length, sizeof(TRIE_CHAR)); 
+    KEYCPY(kp, key, 0, 0, key->size);
+    kp->size = key->size;
+    stop = 0;
     
-    if ((ki >= klen) || (cd == 0)) {
-        return;
-    }
-
-    // deletion (prefix + suffix[1:])
-    if (klen > 1){
-        kp = DUP_KEY(key, klen-1, ki); 
-
-        memcpy(&kp->s[ki], &key->s[ki+1], klen-ki-1);
-
-        _suggestR2(t, kp, 0, cd-1, suggestions);
-        FREE_KEY(kp);
-    }
-
-    // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
-    if (ki < klen-1) {
-        kp = DUP_KEY(key, klen, ki);
-
-        memcpy(&kp->s[ki], &key->s[ki+1], 1);
-        memcpy(&kp->s[ki+1], &key->s[ki], 1);
-        memcpy(&kp->s[ki+2], &key->s[ki+2], klen-ki-2);
-
-        _suggestR2(t, kp, 0, cd-1, suggestions);
-        FREE_KEY(kp);
-    }
-
-                         
-    // insertion (prefix + x + suffix[:])
-    p = prefix->children;
-    while(p){
-        kp = DUP_KEY(key, klen+1, ki);
-
-        memcpy(&kp->s[ki], &p->key, 1);
-        memcpy(&kp->s[ki+1], &key->s[ki], klen-ki);
-
-        _suggestR2(t, kp, 0, cd-1, suggestions);
-        FREE_KEY(kp);
-
-        p = p->next;
-    }
+    _trie_keys(prefix, kp, max_depth, efn, arg, &stop);
     
-    // alteration (prefix + x + suffix[1:])
-    p = prefix->children;
-    while(p){
-        kp = DUP_KEY(key, klen, ki);
-
-        memcpy(&kp->s[ki], &p->key, 1);
-        memcpy(&kp->s[ki+1], &key->s[ki+1], klen-ki-1);
-
-        _suggestR2(t, kp, 0, cd-1, suggestions);
-        FREE_KEY(kp);
-
-        p = p->next;
-    }
-
-    _suggestR2(t, key, ki+1, cd, suggestions);
+    KEYFREE(kp);
 }
-       
-void suggestR2(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
+/*
+// Complexity: O(m^d), m = string length, d = edit distance
+void _suggestR2WT(trie_t *t, trie_key_t *key, unsigned long ki, unsigned long cd, trie_t *suggestions)
 {
-    _suggestR2(t, key, 0, max_distance, suggestions);           
-}
-
-void _suggestR2WT(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_t *suggestions)
-{
-    size_t klen;    
+    unsigned long klen;
     trie_key_t pk;
     trie_node_t *prefix,*p;
     TRIE_CHAR ch;
     
+    // TODO: Maybe we can avoid prefix match at everycall. We can use memoization.
     // search prefix 
     prefix = t->root;
     if (ki > 0) {
         pk.s = key->s; pk.len = ki; pk.next = NULL;
-        prefix = trie_prefix(t->root, &pk);
+        prefix = _trie_prefix(t->root, &pk);
         if (!prefix) {
             return;
         }
     }
     
     // search suffix (which will complete the search for the full key)
-    klen = key->len;    
+    klen = key->len;
     pk.s = &key->s[ki]; pk.len = klen-ki; pk.next = NULL;
-    p = trie_prefix(prefix, &pk);    
+    p = trie_prefix(prefix, &pk);
     if (p && p->value) {
         trie_add(suggestions, key, 1);
     }
@@ -727,7 +473,7 @@ void _suggestR2WT(trie_t *t, trie_key_t *key, size_t ki, size_t cd, trie_t *sugg
     _suggestR2WT(t, key, ki+1, cd, suggestions);
 }
        
-void suggestR2WT(trie_t *t, trie_key_t *key, size_t max_distance, trie_t **suggestions)
+void suggestR2WT(trie_t *t, trie_key_t *key, unsigned long max_distance, trie_t **suggestions)
 {
     trie_key_t *kp;
 
@@ -740,111 +486,7 @@ void suggestR2WT(trie_t *t, trie_key_t *key, size_t max_distance, trie_t **sugge
     kp->len = key->len;
     
     _suggestR2WT(t, kp, 0, max_distance, *suggestions);
+    
+    FREE_KEY(kp);
 }
-// This is _30x_ times slower than the recursive versions. This is because,
-// we add the items to be processed to the queue until distance is reached due to the nature 
-// of the queue structure. In recursive functions, OTOH, items are processed once edit_distance
-// is reached which gives a _far_ better memory utilization.
-// Complexity: O(m^d), m = string length, d = edit distance
-void suggestI(trie_t *t, trie_key_t *key, size_t max_distance, trie_key_t **suggestions)
-{
-    unsigned int i,ki,cs,klen;
-    trie_key_t cdq, pk;
-    trie_key_t *q,*k,*kp;
-    trie_node_t *p, *prefix;
-
-    // init partial queue
-    cdq.s = NULL; cdq.len = 0; cdq.next = &cdq; q = &cdq;
-        
-    PUT(&q, key);
-    cs = 1;
-    max_distance += 1;
-    while(max_distance--)
-    {
-        i = cs;
-        cs = 0;        
-        while(i--)
-        {      
-            k = GET(&q); klen = k->len;
-            if (trie_search(t, k))
-            {
-                kp = DUP_KEY(k, k->len, k->len);
-                //if (!PUT(suggestions, kp)) {
-                //    FREE_KEY(kp);
-                //}
-                PUT(suggestions, kp);
-            }
-
-            if(max_distance == 0) {
-                FREE_KEY(k);
-                continue;
-            }
-
-            prefix = t->root;
-            for(ki=0;ki<klen;ki++)
-            {
-                // check prefix
-                if (ki > 0) {
-                    pk.s = k->s; pk.len = ki; pk.next = NULL;                    
-                    prefix = trie_prefix(t->root, &pk);
-                    if(!prefix) {
-                        break; // no need to check remanining
-                    }  
-                }
-                
-                // deletion (prefix + suffix[1:])
-                if (klen > 1){
-                    kp = DUP_KEY(k, klen-1, ki); 
-
-                    memcpy(&kp->s[ki], &k->s[ki+1], klen-ki-1);
-                    
-                    PUT(&q, kp);
-                    cs++;
-                }
-                
-                // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
-                if (ki < klen-1) {
-                    kp = DUP_KEY(k, klen, ki);
-
-                    memcpy(&kp->s[ki], &k->s[ki+1], 1);
-                    memcpy(&kp->s[ki+1], &k->s[ki], 1);
-                    memcpy(&kp->s[ki+2], &k->s[ki+2], klen-ki-2);
-                                       
-                    PUT(&q, kp);
-                    cs++;
-                }
-
-                // insertion (prefix + x + suffix[:])
-                p = prefix->children;
-                while(p){
-                    kp = DUP_KEY(k, klen+1, ki);
-
-                    memcpy(&kp->s[ki], &p->key, 1);
-                    memcpy(&kp->s[ki+1], &k->s[ki], klen-ki);
-                                         
-                    PUT(&q, kp);
-                    cs++;
-
-                    p = p->next;
-                }
-                
-                
-                // alteration (prefix + x + suffix[1:])
-                p = prefix->children;
-                while(p){
-                    kp = DUP_KEY(k, klen, ki);
-
-                    memcpy(&kp->s[ki], &p->key, 1);
-                    memcpy(&kp->s[ki+1], &k->s[ki+1], klen-ki-1);
-                                         
-                    PUT(&q, kp);
-                    cs++;
-
-                    p = p->next;
-                }
-            } 
-            if (k != key)
-                FREE_KEY(k);
-        } 
-    }
-}
+*/
