@@ -39,7 +39,7 @@ setup(name=NAME,
     author="Sumer Cip",
     author_email="sumerc@gmail.com",
     ext_modules = [Extension(
-        "Triez",
+        "_triez",
         sources = ["_triez.c", "trie.c"],
         define_macros = user_macros,
         libraries = user_libraries,

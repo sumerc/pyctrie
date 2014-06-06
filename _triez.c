@@ -368,9 +368,9 @@ static struct PyModuleDef Triez_module = {
 
 PyMODINIT_FUNC
 #ifdef IS_PY3K
-PyInit_Triez(void)
+PyInit__triez(void)
 #else
-initTriez(void)
+init_triez(void)
 #endif
 {
     PyObject *m;
@@ -388,7 +388,7 @@ initTriez(void)
     if (m == NULL)
         return NULL;
 #else
-    m = Py_InitModule("Triez",  Triez_methods);
+    m = Py_InitModule("_triez",  Triez_methods);
     if (m == NULL)
         return;
 #endif
