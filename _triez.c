@@ -32,7 +32,7 @@ size_t TriezUnicode_CharSize(PyObject *o)
     return 0;
 } 
 #else
-#define TriezUnicode PyUnicode_AS_DATA
+#define TriezUnicode PyUnicode_AS_UNICODE
 #define TriezUnicode_Size PyUnicode_GET_SIZE
 #define TriezUnicode_CharSize(o) sizeof(Py_UNICODE)
 #endif
@@ -113,26 +113,57 @@ static PyObject* Trie_node_count(TrieObject* self)
 
 int _enum_trie_keys(trie_key_t *key, void *arg)
 {
-    _DebugPrintTKEY(*key);
+    PyObject *ks, *exc;
     
-    // TODO: use PyUnicode_FromKindAndData here to build the string again.
+    //_DebugPrintTKEY(*key);
+    
+#ifdef IS_PEP393_AVAILABLE
+    ks = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, key->s, key->size);
+    if (!ks) {
+        return 1;
+    }
+#else
+    ks = PyUnicode_FromUnicode((const Py_UNICODE *)key->s, key->size);
+    if (!ks) {
+        return 1; 
+    }
+#endif
+    exc = PyObject_CallFunction((PyObject *)arg, "((O))", ks);
+    if (!exc) {
+        PyErr_Print();
+        return 1; 
+    }
+    
     return 1;
 }
 
 static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
 {
-    PyObject *prefix;
+    PyObject *prefix, *enumfn;
     trie_key_t k;
     TrieObject *self;
+    unsigned long max_depth;
 #ifdef IS_PEP393_AVAILABLE
     Py_UCS4 *p;
 #endif
     
     self = (TrieObject *)selfobj;
     
+    max_depth = 0;
     prefix = NULL;
-    if (!PyArg_ParseTuple(args, "|O", &prefix)) {
+    if (!PyArg_ParseTuple(args, "|OOk", &enumfn, &prefix, &max_depth)) {
         return NULL;
+    }
+    
+    if (!PyCallable_Check(enumfn)) {
+        PyErr_SetString(TriezError, "enum callback must be callable");
+        return NULL;
+    }
+    
+    // if max_depth == zero, set it to trie height which is the max. possible
+    // depth. 
+    if(!max_depth || max_depth > self->ptrie->height) {
+        max_depth = self->ptrie->height;
     }
     
     if (!prefix) {
@@ -162,7 +193,7 @@ static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
 #endif
     }
     
-    trie_keys(self->ptrie, &k, 3, _enum_trie_keys, NULL);
+    trie_keys(self->ptrie, &k, max_depth, _enum_trie_keys, enumfn);
     
 #ifdef IS_PEP393_AVAILABLE
     TRIE_FREE(p);
@@ -326,7 +357,7 @@ static PyTypeObject TrieType = {
     0,                              /* tp_getattro */
     0,                              /* tp_setattro */
     0,                              /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,             /* tp_flags */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /* tp_flags */
     "Trie objects",                 /* tp_doc */
     0,                              /* tp_traverse */
     0,                              /* tp_clear */

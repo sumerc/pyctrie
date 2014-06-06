@@ -46,7 +46,7 @@ setup(name=NAME,
         extra_compile_args = compile_args,
         extra_link_args = link_args,
         )],
-    #py_modules =  ["triez"],
+    py_modules =  ["triez"],
     #entry_points = {
     #'console_scripts': [
     #    'triez = triez:main',

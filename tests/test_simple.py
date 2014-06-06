@@ -1,4 +1,5 @@
 import sys
+import triez
 import _triez
 import unittest
 
@@ -7,7 +8,7 @@ _SAVE_PROFILE_RESULTS = True
 class TestBasic(unittest.TestCase):
     
     def test_temp(self):
-        tr = _triez.Trie()
+        tr = triez.Trie()
         
         tr[u"A"] = 1
         tr[u"to"] = 1
@@ -18,15 +19,16 @@ class TestBasic(unittest.TestCase):
         tr[u"in"] = 1
         tr[u"inn"] = 1
         
-        print(tr.keys(u"in"))
+        #for x in tr.iterkeys(u"in", 6):
+        #    print(x)
     
     def test_basic(self):
     
-        self.assertEqual(_triez.Trie().node_count(), 1)
+        self.assertEqual(triez.Trie().node_count(), 1)
 
-        tr = _triez.Trie()
+        tr = triez.Trie()
         del tr
-        tr = _triez.Trie()
+        tr = triez.Trie()
         tr[u"key"] = 55
         
         self.assertTrue(u"key" in tr)
@@ -63,7 +65,7 @@ class TestBasic(unittest.TestCase):
             pass
         
         del tr
-        tr = _triez.Trie()
+        tr = triez.Trie()
         tr[u"A"] = 1
         tr[u"to"] = 1
         tr[u"tea"] = 1
@@ -80,7 +82,7 @@ class TestBasic(unittest.TestCase):
             def __del__(self):
                 A._a_destructor_called = True
                 
-        tr = _triez.Trie()
+        tr = triez.Trie()
         #tr = {}
         a = A()
         tr[u"mo"] = a
@@ -93,9 +95,8 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(sys.getrefcount(tr[u"mo"]), 2)
         del tr[u"mo"]
         self.assertTrue(A._a_destructor_called)
-    
-    def test_profile(self):    
-        """
+        
+    """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)
         trie2[u"testing"] =  5
@@ -104,7 +105,9 @@ class TestBasic(unittest.TestCase):
         def _p3():
             for i in range(OP_COUNT):
                 val = trie2[u"testing"]
-        """
+    """
+    """
+    def test_profile(self):
         import yappi
         import datetime
         OP_COUNT = 1000000
@@ -188,4 +191,4 @@ class TestBasic(unittest.TestCase):
                 for stat in stats:
                     f.write(stat)
                     f.write('\n')
-    
+    """
