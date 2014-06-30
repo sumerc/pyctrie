@@ -111,107 +111,6 @@ static PyObject* Trie_node_count(TrieObject* self)
     return Py_BuildValue("l", self->ptrie->node_count);
 }
 
-int _enum_trie_keys(trie_key_t *key, void *arg)
-{
-    PyObject *ks, *exc;
-    
-    //_DebugPrintTKEY(*key);
-    
-#ifdef IS_PEP393_AVAILABLE
-    ks = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, key->s, key->size);
-    if (!ks) {
-        return 1;
-    }
-#else
-    ks = PyUnicode_FromUnicode((const Py_UNICODE *)key->s, key->size);
-    if (!ks) {
-        return 1; 
-    }
-#endif
-    exc = PyObject_CallFunction((PyObject *)arg, "((O))", ks);
-    if (!exc) {
-        PyErr_Print();
-        return 1; 
-    }
-    
-    return 1;
-}
-
-static PyObject* Trie_keys(PyObject *selfobj, PyObject *args)
-{
-    PyObject *prefix, *enumfn;
-    trie_key_t k;
-    TrieObject *self;
-    unsigned long max_depth;
-#ifdef IS_PEP393_AVAILABLE
-    Py_UCS4 *p;
-#endif
-    
-    self = (TrieObject *)selfobj;
-    
-    max_depth = 0;
-    prefix = NULL;
-    if (!PyArg_ParseTuple(args, "|OOk", &enumfn, &prefix, &max_depth)) {
-        return NULL;
-    }
-    
-    if (!PyCallable_Check(enumfn)) {
-        PyErr_SetString(TriezError, "enum callback must be callable");
-        return NULL;
-    }
-    
-    // if max_depth == zero, set it to trie height which is the max. possible
-    // depth. 
-    if(!max_depth || max_depth > self->ptrie->height) {
-        max_depth = self->ptrie->height;
-    }
-    
-    if (!prefix) {
-        memset(&k, 0, sizeof(trie_key_t));
-    } else {
-        if (!_IsValid_Unicode(prefix)) {
-            PyErr_SetString(TriezError, "key must be a valid unicode string.");
-            return NULL;
-        }
-        
-#ifdef IS_PEP393_AVAILABLE
-        // if PEP393 is available, we try to create a UCS4 buffer from the given 
-        // string object. Some computation heavy functions in the trie manipulates 
-        // the key buffer, and so we make this conversion to simplify the process.
-        // With this conversion we can safely write from TRIE_CHAR to trie_key_t
-        // and vice versa.
-        p = PyUnicode_AsUCS4Copy(prefix);
-        if (!p) {
-            return NULL; // exception was set above. 
-        }
-        
-        k.s = (char *)p;
-        k.size = TriezUnicode_Size(prefix);
-        k.char_size = sizeof(Py_UCS4);
-#else
-        k = _PyUnicode_AS_TKEY(prefix);
-#endif
-    }
-    
-    trie_keys(self->ptrie, &k, max_depth, _enum_trie_keys, enumfn);
-    
-#ifdef IS_PEP393_AVAILABLE
-    TRIE_FREE(p);
-#endif
-
-    Py_RETURN_NONE;
-}
-
-static PyMethodDef Trie_methods[] = {
-    {"mem_usage", (PyCFunction)Trie_mem_usage, METH_NOARGS, 
-        "Memory usage of the trie. Used for debugging purposes."},
-    {"node_count", (PyCFunction)Trie_node_count, METH_NOARGS, 
-        "Node count of the trie. Used for debugging purposes."},
-    {"keys", Trie_keys, METH_VARARGS, 
-        "Node count of the trie. Used for debugging purposes."},   
-    {NULL}  /* Sentinel */
-};
-
 static void Trie_dealloc(TrieObject* self)
 {
     //printf("destructor\r\n");
@@ -237,7 +136,9 @@ static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 int Trie_contains(PyObject *op, PyObject *key)
 {
     trie_key_t k;
-    TrieObject *mp = (TrieObject *)op;
+    TrieObject *mp;
+    
+    mp = (TrieObject *)op;
     
     if (!_IsValid_Unicode(key)) {
         return 0; // do not return exception here.
@@ -332,6 +233,223 @@ static PyMappingMethods Trie_as_mapping = {
     (objobjargproc)trie_ass_sub,    /*mp_ass_subscript*/
 };
 
+typedef struct {
+    PyObject_HEAD
+    TrieObject *trieobj;
+    iter_t *_iter;
+} TrieKeysObject;
+
+static void triekeys_dealloc(TrieKeysObject *tko)
+{
+    iterkeys_deinit(tko->_iter);
+    Py_XDECREF(tko->trieobj);
+    PyObject_GC_Del(tko);
+}
+
+static PyObject *triekeys_next(TrieKeysObject *tko)
+{
+    PyObject *ks;
+    iter_t *iter;
+    if (!tko->_iter) {
+        return NULL;
+    }
+    
+    
+    iter = iterkeys_next(tko->_iter);
+    if (iter->last) {
+        iterkeys_reset(tko->_iter);
+        return NULL;
+    }
+    
+#ifdef IS_PEP393_AVAILABLE
+    // If PEP393 is available, iterkeys always work on UCS4 buffers. See Trie_keys()
+    ks = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, iter->key->s, iter->key->size);
+#else
+    ks = PyUnicode_FromUnicode((const Py_UNICODE *)iter->key->s, iter->key->size);
+#endif
+    
+    return ks;
+}
+
+int TrieKeys_contains(TrieKeysObject *tko, PyObject *key)
+{
+    // TODO: Implement
+    return 1;
+}
+
+static Py_ssize_t TrieKeys_len(TrieKeysObject *tko)
+{
+    // TODO: Implement
+    return 0;
+}
+
+
+PyObject *PyObject_MySelfIter(PyObject *obj)
+{
+    TrieKeysObject * tko;
+
+    tko = (TrieKeysObject *)obj;
+    Py_INCREF(obj);
+    if (tko->_iter) {
+        iterkeys_reset(tko->_iter);
+    }
+    return obj;
+}
+
+static PySequenceMethods triekeys_as_sequence = {
+    (lenfunc)TrieKeys_len,              /* sq_length */
+    0,                                  /* sq_concat */
+    0,                                  /* sq_repeat */
+    0,                                  /* sq_item */
+    0,                                  /* sq_slice */
+    0,                                  /* sq_ass_item */
+    0,                                  /* sq_ass_slice */
+    (objobjproc)TrieKeys_contains,      /* sq_contains */
+};
+
+PyTypeObject TrieKeysType = {
+#ifdef IS_PY3K
+    PyVarObject_HEAD_INIT(NULL, 0)
+#else
+    PyObject_HEAD_INIT(NULL)
+    0,                              /*ob_size*/
+#endif
+    "TrieKeys",              /* tp_name */
+    sizeof(TrieKeysObject),            /* tp_basicsize */
+    0,                              /* tp_itemsize */
+    (destructor)triekeys_dealloc,   /* tp_dealloc */
+    0,                              /* tp_print */
+    0,                              /* tp_getattr */
+    0,                              /* tp_setattr */
+    0,                              /* tp_reserved */
+    0,                              /* tp_repr */
+    0,                              /* tp_as_number */
+    &triekeys_as_sequence,          /* tp_as_sequence */
+    0,                              /* tp_as_mapping */
+    0,                              /* tp_hash */
+    0,                              /* tp_call */
+    0,                              /* tp_str */
+    PyObject_GenericGetAttr,        /* tp_getattro */
+    0,                              /* tp_setattro */
+    0,                              /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
+    0,                              /* tp_doc */
+    0,                              /* tp_traverse */
+    0,                              /* tp_clear */
+    0,                              /* tp_richcompare */
+    0,                              /* tp_weaklistoffset */
+    PyObject_MySelfIter,            /* tp_iter */
+    (iternextfunc)triekeys_next,    /* tp_iternext */
+    0,                              /* tp_methods */
+    0,
+};
+
+static PyObject *Trie_keys(PyObject* selfobj, PyObject *args)
+{
+    PyObject *uprefix;
+    trie_key_t k;
+    TrieObject *self;
+    unsigned long max_depth;
+    TrieKeysObject *keys;
+#ifdef IS_PEP393_AVAILABLE
+    Py_UCS4 *_ucs4_buf;
+#endif
+
+    self = (TrieObject *)selfobj;
+    
+    max_depth = 0;
+    uprefix = NULL;
+    if (!PyArg_ParseTuple(args, "|Ok", &uprefix, &max_depth)) {
+        return NULL;
+    }
+    
+    // if max_depth == zero, set it to trie height which is the max. possible
+    // depth. 
+    if(!max_depth || max_depth > self->ptrie->height) {
+        max_depth = self->ptrie->height;
+    }
+    
+    if (!uprefix) {
+        memset(&k, 0, sizeof(trie_key_t));
+    } else {
+        if (!_IsValid_Unicode(uprefix)) {
+            PyErr_SetString(TriezError, "key must be a valid unicode string.");
+            return NULL;
+        }
+        
+#ifdef IS_PEP393_AVAILABLE
+        // if PEP393 is available, we try to create a UCS4 buffer from the given 
+        // string object. Some computation heavy functions in the Trie manipulates 
+        // the key buffer, and so we make this conversion to simplify the process.
+        // With this conversion we can safely write from TRIE_CHAR(trie) to 
+        // trie_key_t (our out key) Otherwise, copying key buffers will be 
+        // complex and slow.
+        _ucs4_buf = PyUnicode_AsUCS4Copy(uprefix);
+        if (!_ucs4_buf) {
+            return NULL; // exception was set above. 
+        }
+        
+        k.s = (char *)_ucs4_buf;
+        k.size = TriezUnicode_Size(uprefix);
+        k.char_size = sizeof(Py_UCS4);
+#else
+        k = _PyUnicode_AS_TKEY(uprefix);
+#endif
+    }
+        
+    keys = PyObject_GC_New(TrieKeysObject, &TrieKeysType);
+    if (keys == NULL) {
+        // TODO: Print Mem Err
+        return NULL;
+    }
+    Py_INCREF(self);
+    keys->trieobj = self;
+    keys->_iter = iterkeys_init(self->ptrie, &k, max_depth);
+    PyObject_GC_Track(keys);
+    return (PyObject *)keys;
+}
+
+// Iterate keys start from root, depth is trie's height.
+PyObject *Trie_iter(PyObject *obj)
+{
+    TrieKeysObject * tko;
+    TrieObject *self;
+    trie_key_t key;
+    
+    self = (TrieObject *)obj;
+
+    // create an empty string
+    key.s = "";
+    key.size = 0;
+#ifdef IS_PEP393_AVAILABLE
+    key.char_size = sizeof(Py_UCS4);
+#else
+    key.char_size = sizeof(Py_UNICODE);
+#endif
+    
+    tko = PyObject_GC_New(TrieKeysObject, &TrieKeysType);
+    if (tko == NULL) {
+        // TODO: Print Mem Err
+        return NULL;
+    }
+    Py_INCREF(self);
+    tko->trieobj = self;
+    tko->_iter = iterkeys_init(self->ptrie, &key, self->ptrie->height);
+    PyObject_GC_Track(tko);
+    
+    return (PyObject *)tko;
+}
+
+static PyMethodDef Trie_methods[] = {
+    {"mem_usage", (PyCFunction)Trie_mem_usage, METH_NOARGS, 
+        "Memory usage of the trie. Used for debugging purposes."},
+    {"node_count", (PyCFunction)Trie_node_count, METH_NOARGS, 
+        "Node count of the trie. Used for debugging purposes."},
+    {"keys", Trie_keys, METH_VARARGS, 
+        "T.keys() -> a set-like object providing a view on T's keys"},
+    {NULL}  /* Sentinel */
+};
+
 static PyTypeObject TrieType = {
 #ifdef IS_PY3K
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -339,7 +457,7 @@ static PyTypeObject TrieType = {
     PyObject_HEAD_INIT(NULL)
     0,                              /*ob_size*/
 #endif
-    "_triez.Trie",                  /* tp_name */
+    "Trie",                         /* tp_name */
     sizeof(TrieObject),             /* tp_basicsize */
     0,                              /* tp_itemsize */
     (destructor)Trie_dealloc,       /* tp_dealloc */
@@ -363,7 +481,7 @@ static PyTypeObject TrieType = {
     0,                              /* tp_clear */
     0,                              /* tp_richcompare */
     0,                              /* tp_weaklistoffset */
-    0,                              /* tp_iter */
+    Trie_iter,                      /* tp_iter */
     0,                              /* tp_iternext */
     Trie_methods,                   /* tp_methods */
     0,                              /* tp_members */

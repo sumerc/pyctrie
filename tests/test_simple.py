@@ -10,6 +10,7 @@ class TestBasic(unittest.TestCase):
     def test_temp(self):
         tr = triez.Trie()
         
+        tr[u""] = 2
         tr[u"A"] = 1
         tr[u"to"] = 1
         tr[u"tea"] = 1
@@ -19,9 +20,17 @@ class TestBasic(unittest.TestCase):
         tr[u"in"] = 1
         tr[u"inn"] = 1
         
-        #for x in tr.iterkeys(u"in", 6):
-        #    print(x)
-    
+        keys = tr.keys(u"")
+        print(list(keys))
+        print(list(keys))
+        for x in keys:
+            if x == u"in":
+                break
+        print(list(keys))
+        
+        for x in tr:
+            print(x)
+        
     def test_basic(self):
     
         self.assertEqual(triez.Trie().node_count(), 1)

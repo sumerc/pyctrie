@@ -15,7 +15,6 @@ typedef struct trie_key_s {
     unsigned long size; // how many characters (or code points) in encoded string
     unsigned char char_size; // character size of the encoding in bytes
     unsigned long alloc_size; // max allocated size of the string buffer. (in characters)
-    struct trie_key_s *next;
 } trie_key_t;
 
 typedef struct trie_node_s {
@@ -32,7 +31,46 @@ typedef struct trie_s {
     struct trie_node_s *root;
 } trie_t;
 
-typedef int (*trie_enum_func_t)(trie_key_t *key, void *arg);
+typedef enum iter_op_type_e {
+    UNDEFINED = 0,
+    DELETE,
+    TRANSPOSE,
+    INSERT,
+    CHANGE,
+    INDEXCHG,
+    AUTOCOMPLETE,
+} iter_op_type_t;
+
+// iterator related structs
+typedef struct iter_op_s {
+    iter_op_type_t type;
+    char dch; // the deleted char in delete/transpose ops
+    unsigned long index;
+    unsigned long depth;
+} iter_op_t;
+
+typedef struct iter_pos_s {
+    iter_op_t op;
+    unsigned long pos; // used for simulating multiple recursive calls in the same body.
+    trie_node_t *iptr; // used for holding the current processing node.
+} iter_pos_t;
+
+// fast, pre-allocated iter_pos_t stack
+typedef struct iter_stack_s {
+    iter_pos_t *_elems;
+    unsigned long index;
+    unsigned long size;
+}iter_stack_t;
+
+typedef struct iter_s {
+    int first;
+    int last;
+    trie_key_t *key;
+    unsigned long first_key_size;
+    iter_stack_t *stack;
+    unsigned long max_depth;
+    trie_t *trie;
+} iter_t;
 
 trie_t *trie_create(void);
 void trie_destroy(trie_t *t);
@@ -40,10 +78,11 @@ unsigned long trie_mem_usage(trie_t *t);
 trie_node_t *trie_search(trie_t *t, trie_key_t *key);
 int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del_fast(trie_t *t, trie_key_t *key);
-void trie_keys(trie_t *t, trie_key_t *key, unsigned long max_depth,
-    trie_enum_func_t efn, void *arg);
-/*
-void suggestR2WT(trie_t *t, trie_key_t *key, size_t max_distance, trie_t **suggestions);
-void autocompleteR1WT(trie_t *t, trie_key_t *key, size_t max_depth, trie_t **suggestions);*/
+
+// iterkeys
+iter_t *iterkeys_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *iterkeys_next(iter_t *iter);
+void iterkeys_deinit(iter_t *iter);
+iter_t *iterkeys_reset(iter_t *iter);
 
 #endif

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import os
 from setuptools import setup
 from distutils.core import Extension
 
@@ -9,11 +10,19 @@ long_description = f.read()
 HOMEPAGE = "http://bitbucket.org/sumerc/triez/"
 NAME = "triez"
 VERSION = "0.1"
+DEBUG = True
 
 user_macros = []
 user_libraries = []
 compile_args = []
 link_args = []
+
+if DEBUG:
+    if os.name == 'posix':
+        compile_args.append('-g')
+    elif os.name == 'nt':
+        compile_args.append('/UNDEBUG')
+        link_args.append('/DEBUG')
    
 CLASSIFIERS = [
     'Development Status :: 5 - Production/Stable',
@@ -35,7 +44,7 @@ CLASSIFIERS = [
 ]
 
 setup(name=NAME, 
-    version=VERSION,    
+    version=VERSION,
     author="Sumer Cip",
     author_email="sumerc@gmail.com",
     ext_modules = [Extension(
