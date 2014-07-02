@@ -1,7 +1,7 @@
 
 Triez 
 ===================
-Fast, pure C, [http://en.wikipedia.org/wiki/Trie](Trie) Python extension 
+Fast, pure C, [Trie](http://en.wikipedia.org/wiki/Trie) Python extension 
 
 Features:
 ===================
