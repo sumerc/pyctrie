@@ -1,18 +1,13 @@
 
-Triez
+Triez 
 ===================
-
-[![Build Status](https://drone.io/bitbucket.org/sumerc/triez/status.png)](https://drone.io/bitbucket.org/sumerc/triez/latest)
+Fast, pure C trie Python extension
 
 Features:
 ===================
-xxxx
-  
-Limitations:
-===================
-xxx
-
-
+  * Autocomplete (using Python Generator)
+  * Fast Spell-Suggestion (using Python Generator) (!not implemented yet)
+  * Supports Python 2.6.x <= x <= Python.3.4
 
 
 
