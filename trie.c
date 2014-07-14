@@ -4,7 +4,8 @@
 
 void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 {
-    // assuming k->char_size >= sizeof(TRIE_CHAR)
+    assert(k->char_size <= sizeof(TRIE_CHAR));
+    
     *(TRIE_CHAR *)&k->s[index*k->char_size] = in;
 }
 
@@ -13,6 +14,7 @@ int KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
     if (index >= k->size) {
         return 0;
     }
+    
     *out = (TRIE_CHAR)k->s[index*k->char_size];
     return 1;
 }
@@ -80,7 +82,7 @@ iter_stack_t * STACKCREATE(unsigned long size)
         TRIE_FREE(r);
         return NULL;
     }
-    r->index = size-1;
+    r->index = 0;
     r->size = size;
 
     return r;
@@ -94,29 +96,29 @@ void STACKFREE(iter_stack_t *k)
 
 void PUSHI(iter_stack_t *k, iter_pos_t *e)
 {
-    assert(k->index >= 0);
+    assert(k->index < k->size);
     
     k->_elems[k->index] = *e;
-    k->index--;
+    k->index++;
 }
 
 iter_pos_t *POPI(iter_stack_t *k)
 {
-    if (k->index == k->size-1){
+    if (k->index == 0) {
         return NULL;
     }
 
-    k->index++;
+    k->index--;
     return &k->_elems[k->index];
 }
 
 iter_pos_t *PEEKI(iter_stack_t *k)
 {
-    if (k->index == k->size-1){
+    if (k->index == 0) {
         return NULL;
     }
 
-    return &k->_elems[k->index+1];
+    return &k->_elems[k->index-1];
 }
 
 trie_node_t *_node_create(TRIE_CHAR key, TRIE_DATA value)
@@ -148,6 +150,7 @@ trie_t *trie_create(void)
         t->node_count = 1;
         t->item_count = 0;
         t->height = 1;
+        t->dirty = 0;
     }
     return t;
 }
@@ -155,7 +158,7 @@ trie_t *trie_create(void)
 void trie_destroy(trie_t *t)
 {
     trie_node_t *curr, *parent, *next;
- 
+    
     while(t->node_count > 0)
     {
         curr = t->root;
@@ -174,7 +177,6 @@ void trie_destroy(trie_t *t)
         }
         t->node_count--;
     }
-
     TRIE_FREE(t);
 }
 
@@ -257,6 +259,7 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
     
     if (!parent->value) {
         t->item_count++;
+        t->dirty = 1;
     }
     
     if (key->size > t->height) {
@@ -337,6 +340,7 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
     t->root->children = prev;
     if (found) {
         t->item_count--;
+        t->dirty = 1;
     }
 
     return found;
@@ -344,20 +348,10 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
 
 iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
-    // TODO: wE DO NOT NEED THE reset LOGIC here, as we already do it in RESET.
-    
     iter_t *r;
     iter_stack_t *k;
     trie_key_t *kp;
-    iter_pos_t ipos;
-    trie_node_t *prefix;
-
-    // first: search key
-    prefix = _trie_prefix(t->root, key);
-    if (!prefix) {
-        return NULL;
-    }
-
+    
     // alloc a key that can hold size + max_depth chars.
     kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));
     if (!kp) {
@@ -372,12 +366,7 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
         KEYFREE(kp);
         return NULL;
     }
-    ipos.iptr = prefix; 
-    ipos.pos = 0; 
-    ipos.op.type = AUTOCOMPLETE; 
-    ipos.op.index = kp->size-1;
-    PUSHI(k, &ipos);
-
+    
     // alloc iterator obj
     r = (iter_t *)malloc(sizeof(iter_t));
     if (!r) {
@@ -387,11 +376,13 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
     }
     r->first = 1;
     r->last = 0;
+    r->fail = 0;
+    r->fail_reason = UNDEFINED;
     r->key = kp;
-    r->first_key_size = kp->size;
-    r->stack = k;
+    r->stack0 = k;
     r->max_depth = max_depth;
     r->trie = t;
+    t->dirty = 0; // reset dirty flag just before iteration
 
     return r;
 }
@@ -399,21 +390,21 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
 void ITERATOR_FREE(iter_t *iter)
 {
     KEYFREE(iter->key);
-    STACKFREE(iter->stack);
+    STACKFREE(iter->stack0);
     TRIE_FREE(iter);
 }
 
-iter_t *iterkeys_reset(iter_t *iter)
+iter_t *itersuffixes_reset(iter_t *iter)
 {
     trie_node_t *prefix;
     iter_pos_t ipos;
         
     // pop all elems first
-    while(POPI(iter->stack))
+    while(POPI(iter->stack0))
         ;
     
     // return key->size to original
-    iter->key->size = iter->first_key_size;
+    iter->key->size = iter->key->alloc_size-iter->max_depth;
     
     // get prefix in the trie
     prefix = _trie_prefix(iter->trie->root, iter->key);
@@ -422,31 +413,44 @@ iter_t *iterkeys_reset(iter_t *iter)
     }
     
     // push the first iter_pos
-    ipos.iptr = prefix; 
+    ipos.iptr = prefix;
     ipos.pos = 0; 
     ipos.op.type = AUTOCOMPLETE; 
     ipos.op.index = iter->key->size-1;
-    PUSHI(iter->stack, &ipos);
+    PUSHI(iter->stack0, &ipos);
     
     // set flags
     iter->first = 1;
     iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
+    
+    return iter;
 }
 
-iter_t *iterkeys_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
-        
+    trie_node_t *prefix;
+    
+    // first search key
+    prefix = _trie_prefix(t->root, key);
+    if (!prefix) {
+        return NULL;
+    }
+
     // finally create the iterator obj
     iter = ITERATOR_CREATE(t, key, max_depth);
     if (!iter) {
         return NULL;
     }
+    itersuffixes_reset(iter);
     
     return iter;
 }
 
-iter_t *iterkeys_next(iter_t *iter)
+iter_t *itersuffixes_next(iter_t *iter)
 {
     iter_pos_t *ip;
     iter_pos_t ipos;
@@ -456,62 +460,76 @@ iter_t *iterkeys_next(iter_t *iter)
     found = 0;
     while(1)
     {
-        ip = PEEKI(iter->stack);
-        if (!ip) { // no elem in stack
-            iter->last = 1;
-            return iter;
+        // found a candidate?
+        if (found) {
+            break;
         }
 
+        // trie changed during iteration?
+        if (iter->trie->dirty) {
+            iter->fail = 1;
+            iter->fail_reason = CHG_WHILE_ITER;
+            break;
+        }
+
+        // start processing the stack
+        ip = PEEKI(iter->stack0);
+        if (!ip) { // no elem in stack0
+            iter->last = 1;
+            break;
+        }
+        
         // check if the search string is already in the trie.
         if (iter->first) {
             iter->first = 0;
             val = ip->iptr->value;
-            ip->iptr = ip->iptr->children; 
+            ip->iptr = ip->iptr->children;
             ip->op.index++;
             if (val) {
-                return iter;
+                break;
             }
-            
         }
-
+        
+        if (!ip->iptr) {
+            POPI(iter->stack0);
+            continue;
+        }
+        
         KEY_CHAR_WRITE(iter->key, ip->op.index, ip->iptr->key);
         iter->key->size = ip->op.index+1;
 
         if (ip->pos == 0 && ip->iptr->value) {
             found = 1;
         }
-
         if (ip->pos == 0) {
             ip->pos = 1;
             if (ip->iptr->children) {
-                if (ip->op.index+1 < (iter->first_key_size + iter->max_depth)) {
+                if (ip->op.index+1 < (iter->key->alloc_size)) {
                     ipos.iptr = ip->iptr->children;
                     ipos.op.type = AUTOCOMPLETE; 
                     ipos.op.index = ip->op.index+1;
                     ipos.pos = 0;
-                    PUSHI(iter->stack, &ipos);
+                    PUSHI(iter->stack0, &ipos);
                 }
             }
         } else if (ip->pos == 1) {
-            POPI(iter->stack);
+            POPI(iter->stack0);
             if (ip->iptr->next) {
                 ipos.iptr = ip->iptr->next;
                 ipos.op.type = AUTOCOMPLETE; 
                 ipos.op.index = ip->op.index;
                 ipos.pos = 0;
-                PUSHI(iter->stack, &ipos);
+                PUSHI(iter->stack0, &ipos);
             }
         }
-
-        if (found) {
-            return iter;
-        }
     }
-
+    
     return iter;
 }
 
-void iterkeys_deinit(iter_t *iter)
+void itersuffixes_deinit(iter_t *iter)
 {
+    assert(iter != NULL);
+    
     ITERATOR_FREE(iter);
 }

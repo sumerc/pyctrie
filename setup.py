@@ -23,6 +23,7 @@ if DEBUG:
     elif os.name == 'nt':
         compile_args.append('/UNDEBUG')
         link_args.append('/DEBUG')
+        link_args.append('/MAP')
    
 CLASSIFIERS = [
     'Development Status :: 5 - Production/Stable',

@@ -14,8 +14,12 @@
 #endif
 
 #ifdef IS_PEP393_AVAILABLE
+//Python dynamically choose encoding of the string if PEP393 is available.
 #define TRIE_CHAR Py_UCS4
 #else
+//Py_UNICODE type represents the storage type which is used by Python internally  
+//as basis for holding Unicode ordinals. Python’s default builds use a 16-bit  
+//type for Py_UNICODE and store Unicode values internally as UCS2.
 #define TRIE_CHAR Py_UNICODE
 #endif
 
@@ -36,7 +40,5 @@
 #else
 #include "stdint.h"
 #endif
-
-
 
 #endif
