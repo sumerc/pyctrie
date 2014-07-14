@@ -106,6 +106,19 @@ trie_key_t _PyUnicode_AS_TKEY(PyObject *s)
     return k;
 }
 
+PyObject *_TKEY_AS_PyUnicode(trie_key_t *k)
+{
+    PyObject *r;
+#ifdef IS_PEP393_AVAILABLE
+    // If PEP393 is available, we always work on UCS4 buffers for 
+    // suffix/prefix/correct functions.
+    r = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, k->s, k->size);
+#else
+    r = PyUnicode_FromUnicode((const Py_UNICODE *)k->s, k->size);
+#endif
+    return r;
+}
+
 // module custom types
 typedef struct {
     PyObject_HEAD
@@ -141,7 +154,7 @@ static PyObject *Triesuffixes_next(TrieSuffixesObject *tko)
 #ifdef CALL_DEBUG
     printf("Triesuffixes_next\r\n");
 #endif
-    
+
     if (!tko->_iter) {
         return NULL;
     }
@@ -157,12 +170,7 @@ static PyObject *Triesuffixes_next(TrieSuffixesObject *tko)
         return NULL;
     }
 
-#ifdef IS_PEP393_AVAILABLE
-    // If PEP393 is available, itersuffixes always work on UCS4 buffers. See Trie_suffixes()
-    ks = PyUnicode_FromKindAndData(PyUnicode_4BYTE_KIND, iter->key->s, iter->key->size);
-#else
-    ks = PyUnicode_FromUnicode((const Py_UNICODE *)iter->key->s, iter->key->size);
-#endif
+    ks = _TKEY_AS_PyUnicode(iter->key);
 
     return ks;
 }
@@ -374,52 +382,39 @@ static PyObject *_create_suffixiterator(TrieObject *trieobj, trie_key_t *key,
     Py_INCREF(tko->_trieobj);
     
     tko->_iter = itersuffixes_init(trieobj->ptrie, key, max_depth);
-    if (!tko->_iter) {
-        //Py_DECREF(tko->_trieobj);
-        //PyObject_GC_Del(tko);
-        //Py_RETURN_NONE;
-    }
-    
     PyObject_GC_Track(tko);
     return (PyObject *)tko;
     
 }
 
-static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
+int _parse_traverse_args(TrieObject *t, PyObject *args, trie_key_t *k, 
+    unsigned long *d)
 {
-    PyObject *uprefix;
-    trie_key_t k;
-    TrieObject *self;
+    PyObject *pfx;
     unsigned long max_depth;
-    
 #ifdef IS_PEP393_AVAILABLE
     Py_UCS4 *_ucs4_buf;
 #endif
 
-#ifdef CALL_DEBUG
-    printf("Trie_suffixes\r\n");
-#endif
-
-    self = (TrieObject *)selfobj;
-    
     max_depth = 0;
-    uprefix = NULL;
-    if (!PyArg_ParseTuple(args, "|Ok", &uprefix, &max_depth)) {
-        return NULL;
+    pfx = NULL;
+    if (!PyArg_ParseTuple(args, "|Ok", &pfx, &max_depth)) {
+        return 0;
     }
-    
+
     // if max_depth == zero, set it to trie height which is the max. possible
     // depth. 
-    if(!max_depth || max_depth > self->ptrie->height) {
-        max_depth = self->ptrie->height;
+    if(!max_depth || max_depth > t->ptrie->height) {
+        max_depth = t->ptrie->height;
     }
+    *d = max_depth;
     
-    if (!uprefix) {
-        memset(&k, 0, sizeof(trie_key_t));
+    if (!pfx) {
+        memset(k, 0, sizeof(trie_key_t));
     } else {
-        if (!_IsValid_Unicode(uprefix)) {
+        if (!_IsValid_Unicode(pfx)) {
             PyErr_SetString(TriezError, "key must be a valid unicode string.");
-            return NULL;
+            return 0;
         }
         
 #ifdef IS_PEP393_AVAILABLE
@@ -429,26 +424,74 @@ static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
         // With this conversion we can safely write from TRIE_CHAR(trie) to 
         // trie_key_t (our out key) Otherwise, copying key buffers will be 
         // complex and slow.
-        _ucs4_buf = PyUnicode_AsUCS4Copy(uprefix);
+        _ucs4_buf = PyUnicode_AsUCS4Copy(pfx);
         if (!_ucs4_buf) {
-            return NULL; // exception was set above. 
+            return 0; // exception was set above. 
         }
         
-        k.s = (char *)_ucs4_buf;
-        k.size = TriezUnicode_Size(uprefix);
-        k.char_size = sizeof(Py_UCS4);
+        k->s = (char *)_ucs4_buf;
+        k->size = TriezUnicode_Size(pfx);
+        k->char_size = sizeof(Py_UCS4);
 #else
-        k = _PyUnicode_AS_TKEY(uprefix);
+        *k = _PyUnicode_AS_TKEY(pfx);
 #endif
     }
+    
+    return 1;
+}
 
-    return _create_suffixiterator(self, &k, max_depth);
+int _enum_suffixes(trie_key_t *k, void *arg)
+{
+    PyObject *list;
+    
+    list = (PyObject *)arg;
+    
+    PyList_Append(list, _TKEY_AS_PyUnicode(k));
+    
+    return 0;
+}
+
+static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
+{
+    trie_key_t k;
+    unsigned long max_depth;
+    PyObject *sfxs;
+
+#ifdef CALL_DEBUG
+    printf("Trie_suffixes\r\n");
+#endif
+    
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
+    {
+        return NULL;
+    }
+    
+    sfxs = PyList_New(0);
+    suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_suffixes, sfxs);
+    
+    return sfxs;
+}
+
+static PyObject *Trie_itersuffixes(PyObject* selfobj, PyObject *args)
+{
+    trie_key_t k;
+    unsigned long max_depth;
+
+#ifdef CALL_DEBUG
+    printf("Trie_itersuffixes\r\n");
+#endif
+    
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
+    {
+        return NULL;
+    }
+
+    return _create_suffixiterator((TrieObject *)selfobj, &k, max_depth);
 }
 
 // Iterate keys start from root, depth is trie's height.
 PyObject *Trie_iter(PyObject *obj)
 {
-    TrieSuffixesObject * tko;
     TrieObject *self;
     trie_key_t k;
     
@@ -495,8 +538,10 @@ static PyMethodDef Trie_methods[] = {
         "Memory usage of the trie. Used for debugging purposes."},
     {"node_count", (PyCFunction)Trie_node_count, METH_NOARGS, 
         "Node count of the trie. Used for debugging purposes."},
+    {"iter_suffixes", Trie_itersuffixes, METH_VARARGS, 
+        "T.iter_suffixes() -> a set-like object providing a view on T's suffixes"},
     {"suffixes", Trie_suffixes, METH_VARARGS, 
-        "T.suffixes() -> a set-like object providing a view on T's suffixes"},
+        "T.suffixes() -> a list containing T's suffixes"},
     {NULL}  /* Sentinel */
 };
 

@@ -53,16 +53,16 @@ class TestBasic(unittest.TestCase):
     def test_suffixes(self):
         # del suffixes after referencing
         tr = self._create_trie()
-        suffixes = tr.suffixes(u"in")
+        suffixes = tr.iter_suffixes(u"in")
         del tr[u"in"]
         del tr[u"inn"]
         self.assertRaises(RuntimeError, list, suffixes)
         self.assertRaises(RuntimeError, list, suffixes)
         
         # trie self_iter and suffixes should be same
-        suffixes = tr.suffixes()
+        suffixes = tr.iter_suffixes()
         self.assertEqual(len(list(tr)), len(list(suffixes)))
-        
+
         # break iteration in the middle and test if it resets again
         for x in suffixes:
             if x == u"in":
@@ -76,15 +76,10 @@ class TestBasic(unittest.TestCase):
         
         # non-existent suffix iter
         tr = self._create_trie()
-        self.assertEqual(len(list(tr.suffixes(u"INVALID"))), 0)
+        self.assertEqual(len(list(tr.iter_suffixes(u"INVALID"))), 0)
         
-        
-        #d = {1:2, 3:4}
-        #generator = d.iterkeys()
-        #del d[3]
-        #self.assertRaises(RuntimeError, list, generator)
-        #self.assertRaises(RuntimeError, list, generator)
-            
+        sfx = tr.suffixes()
+        print(sfx)
     
     def test_basic(self):
         self.assertEqual(triez.Trie().node_count(), 1)
@@ -153,10 +148,10 @@ class TestBasic(unittest.TestCase):
         self.assertTrue(A._a_destructor_called)
         
         self.assertEqual(_GRC(tr), 2)
-        suffixes = tr.suffixes()
+        suffixes = tr.iter_suffixes()
         self.assertEqual(_GRC(tr), 3)
         for x in suffixes: pass
-        sfx2 = tr.suffixes(u"")
+        sfx2 = tr.iter_suffixes(u"")
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
        
     """

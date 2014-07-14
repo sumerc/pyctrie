@@ -94,12 +94,18 @@ typedef struct iter_s {
     unsigned long max_depth;
 } iter_t;
 
+typedef int (*trie_enum_cbk_t)(trie_key_t *key, void *arg);
+
 trie_t *trie_create(void);
 void trie_destroy(trie_t *t);
 unsigned long trie_mem_usage(trie_t *t);
 trie_node_t *trie_search(trie_t *t, trie_key_t *key);
 int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del_fast(trie_t *t, trie_key_t *key);
+
+// suffixes
+void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    trie_enum_cbk_t cbk, void* cbk_arg);
 
 // itersuffixes
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
