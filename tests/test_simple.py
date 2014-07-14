@@ -78,8 +78,7 @@ class TestBasic(unittest.TestCase):
         tr = self._create_trie()
         self.assertEqual(len(list(tr.iter_suffixes(u"INVALID"))), 0)
         
-        sfx = tr.suffixes()
-        print(sfx)
+        self.assertEqual(len(tr.suffixes()), len(list(tr.iter_suffixes())))
     
     def test_basic(self):
         self.assertEqual(triez.Trie().node_count(), 1)
