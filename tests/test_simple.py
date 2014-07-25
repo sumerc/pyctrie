@@ -49,8 +49,8 @@ class TestBasic(unittest.TestCase):
             print(x)
     """       
         
-        
     def test_suffixes(self):
+        
         # del suffixes after referencing
         tr = self._create_trie()
         suffixes = tr.iter_suffixes(u"in")

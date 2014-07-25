@@ -273,7 +273,7 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
 // Algorithm:  First traverse the key and reverse the linked-list of children,
 // while reversing, move the branched nodes to the head then traverse back and
 // try to delete the node if no children is associated with it. Harder to implement
-// however complexity is better.
+// however performance is better as we iterate key only once.
 // Complexity: O(m)
 int trie_del_fast(trie_t *t, trie_key_t *key)
 {
@@ -471,7 +471,6 @@ iter_t *itersuffixes_reset(iter_t *iter)
     // push the first iter_pos
     ipos.iptr = prefix;
     ipos.pos = 0;
-    ipos.op.type = AUTOCOMPLETE;
     ipos.op.index = iter->key->size-1;
     PUSHI(iter->stack0, &ipos);
 
@@ -557,12 +556,12 @@ iter_t *itersuffixes_next(iter_t *iter)
         if (ip->pos == 0 && ip->iptr->value) {
             found = 1;
         }
+
         if (ip->pos == 0) {
             ip->pos = 1;
             if (ip->iptr->children) {
                 if (ip->op.index+1 < (iter->key->alloc_size)) {
                     ipos.iptr = ip->iptr->children;
-                    ipos.op.type = AUTOCOMPLETE;
                     ipos.op.index = ip->op.index+1;
                     ipos.pos = 0;
                     PUSHI(iter->stack0, &ipos);
@@ -572,7 +571,6 @@ iter_t *itersuffixes_next(iter_t *iter)
             POPI(iter->stack0);
             if (ip->iptr->next) {
                 ipos.iptr = ip->iptr->next;
-                ipos.op.type = AUTOCOMPLETE;
                 ipos.op.index = ip->op.index;
                 ipos.pos = 0;
                 PUSHI(iter->stack0, &ipos);

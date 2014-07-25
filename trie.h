@@ -50,7 +50,6 @@ typedef enum iter_op_type_e {
     INSERT,
     CHANGE,
     INDEXCHG,
-    AUTOCOMPLETE,
 } iter_op_type_t;
 
 typedef enum iter_fail_e {

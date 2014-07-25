@@ -8,11 +8,10 @@
 
 #include "config.h"
 #include "trie.h"
+#include "windows.h"
 
 // globals
 static PyObject *TriezError;
-
-//#define CALL_DEBUG
 
 // defines
 #ifdef IS_PEP393_AVAILABLE
@@ -20,7 +19,7 @@ static PyObject *TriezError;
 #define TriezUnicode_Size PyUnicode_GET_LENGTH
 size_t TriezUnicode_CharSize(PyObject *o) 
 {
-    switch(PyUnicode_KIND(o)) 
+    switch(PyUnicode_KIND(o))
     {
         case PyUnicode_1BYTE_KIND:
             return 1;
@@ -54,7 +53,7 @@ void _pPTR(void *ptr)
     printf("ptr:%p\r\n", ptr);
 }
 
-void _pTKEY(trie_key_t k)
+void _printTKEY(trie_key_t k)
 {
     unsigned int i;
     
@@ -72,9 +71,6 @@ void _pTKEY(trie_key_t k)
 
 int _IsValid_Unicode(PyObject *s)
 {
-#ifdef CALL_DEBUG
-    printf("_IsValid_Unicode\r\n");
-#endif
 
     if (!PyUnicode_Check(s)) {
         return 0;
@@ -92,10 +88,6 @@ int _IsValid_Unicode(PyObject *s)
 trie_key_t _PyUnicode_AS_TKEY(PyObject *s)
 {   
     trie_key_t k;
-    
-#ifdef CALL_DEBUG
-    printf("_PyUnicode_AS_TKEY\r\n");
-#endif
     
     k.s = (char *)TriezUnicode(s);
     k.size = TriezUnicode_Size(s);
@@ -135,10 +127,6 @@ typedef struct {
 
 static void Triesuffixes_dealloc(TrieSuffixesObject *tko)
 {
-#ifdef CALL_DEBUG
-    printf("Triesuffixes_dealloc\r\n");
-#endif
-    
     Py_XDECREF(tko->_trieobj);
     if (tko->_iter) { // might be an empty iterator
         itersuffixes_deinit(tko->_iter);
@@ -150,10 +138,6 @@ static PyObject *Triesuffixes_next(TrieSuffixesObject *tko)
 {
     PyObject *ks;
     iter_t *iter;
-    
-#ifdef CALL_DEBUG
-    printf("Triesuffixes_next\r\n");
-#endif
 
     if (!tko->_iter) {
         return NULL;
@@ -178,10 +162,6 @@ static PyObject *Triesuffixes_next(TrieSuffixesObject *tko)
 PyObject *Triesuffixes_selfiter(PyObject *obj)
 {
     TrieSuffixesObject * tko;
-    
-#ifdef CALL_DEBUG
-    printf("Triesuffixes_selfiter\r\n");
-#endif
 
     tko = (TrieSuffixesObject *)obj;
     Py_INCREF(obj);
@@ -231,9 +211,6 @@ PyTypeObject TrieSuffixesType = {
 // Trie methods
 static Py_ssize_t Trie_length(TrieObject *mp)
 {
-#ifdef CALL_DEBUG
-    printf("Trie_length\r\n");
-#endif
     return mp->ptrie->item_count;
 }
 
@@ -242,10 +219,6 @@ static PyObject *Trie_subscript(TrieObject *mp, PyObject *key)
     trie_key_t k;
     PyObject *v;
     trie_node_t *w;
-
-#ifdef CALL_DEBUG
-    printf("Trie_subscript\r\n");
-#endif
 
     if (!_IsValid_Unicode(key)) {
         PyErr_SetString(TriezError, "key must be a valid unicode string.");
@@ -269,10 +242,6 @@ static int Trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 {
     trie_key_t k;
     trie_node_t *w;
-    
-#ifdef CALL_DEBUG
-    printf("Trie_ass_sub\r\n");
-#endif
     
     if (!_IsValid_Unicode(key)) {
         PyErr_SetString(TriezError, "key must be a valid unicode string.");
@@ -302,35 +271,22 @@ static int Trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
 
 static PyObject* Trie_mem_usage(TrieObject* self)
 {
-#ifdef CALL_DEBUG
-    printf("Trie_mem_usage\r\n");
-#endif
     return Py_BuildValue("l", trie_mem_usage(self->ptrie));
 }
 
 static PyObject* Trie_node_count(TrieObject* self)
 {
-#ifdef CALL_DEBUG
-    printf("Trie_node_count\r\n");
-#endif
     return Py_BuildValue("l", self->ptrie->node_count);
 }
 
 static void Trie_dealloc(TrieObject* self)
 {
-#ifdef CALL_DEBUG
-    printf("Trie_dealloc\r\n");
-#endif
     trie_destroy(self->ptrie);
 }
 
 static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
     TrieObject *self;
-    
-#ifdef CALL_DEBUG
-    printf("Trie_new\r\n");
-#endif
 
     self = (TrieObject *)type->tp_alloc(type, 0);
     if (self != NULL) {
@@ -348,10 +304,6 @@ int Trie_contains(PyObject *op, PyObject *key)
 {
     trie_key_t k;
     TrieObject *mp;
-
-#ifdef CALL_DEBUG
-    printf("Trie_contains\r\n");
-#endif
     
     mp = (TrieObject *)op;
     
@@ -457,10 +409,6 @@ static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
     unsigned long max_depth;
     PyObject *sfxs;
 
-#ifdef CALL_DEBUG
-    printf("Trie_suffixes\r\n");
-#endif
-    
     if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
     {
         return NULL;
@@ -477,10 +425,6 @@ static PyObject *Trie_itersuffixes(PyObject* selfobj, PyObject *args)
     trie_key_t k;
     unsigned long max_depth;
 
-#ifdef CALL_DEBUG
-    printf("Trie_itersuffixes\r\n");
-#endif
-    
     if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
     {
         return NULL;
@@ -494,10 +438,6 @@ PyObject *Trie_iter(PyObject *obj)
 {
     TrieObject *self;
     trie_key_t k;
-    
-#ifdef CALL_DEBUG
-    printf("Trie_iter\r\n");
-#endif
 
     self = (TrieObject *)obj;
 
@@ -626,7 +566,7 @@ init_triez(void)
         return;
 #endif
     }
-    
+
 #ifdef IS_PY3K
     m = PyModule_Create(&Triez_module);
     if (m == NULL)

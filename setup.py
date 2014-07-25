@@ -24,6 +24,7 @@ if DEBUG:
         compile_args.append('/UNDEBUG')
         link_args.append('/DEBUG')
         link_args.append('/MAP')
+        compile_args.append('/Zi')
    
 CLASSIFIERS = [
     'Development Status :: 5 - Production/Stable',
