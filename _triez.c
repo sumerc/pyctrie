@@ -8,7 +8,6 @@
 
 #include "config.h"
 #include "trie.h"
-#include "windows.h"
 
 // globals
 static PyObject *TriezError;
