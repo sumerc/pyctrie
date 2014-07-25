@@ -28,12 +28,12 @@ void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index,
 
     assert(dst_index+length-1 < dst->size);
     assert(src_index+length-1 < src->size);
+    assert(dst->char_size >= src->char_size);
 
     for (i=0;i<length;i++) {
         srcb = &src->s[(src_index+i) * src->char_size];
         dstb = &dst->s[(dst_index+i) * dst->char_size];
         for (j=0;j<src->char_size;j++) {
-            assert(dst->char_size >= src->char_size);
             dstb[j] = srcb[j];
         }
     }
@@ -497,40 +497,6 @@ void ITERATOR_FREE(iter_t *iter)
     TRIE_FREE(iter);
 }
 
-iter_t *itersuffixes_reset(iter_t *iter)
-{
-    trie_node_t *prefix;
-    iter_pos_t ipos;
-
-    // pop all elems first
-    while(POPI(iter->stack0))
-        ;
-
-    // return key->size to original
-    iter->key->size = iter->key->alloc_size-iter->max_depth;
-
-    // get prefix in the trie
-    prefix = _trie_prefix(iter->trie->root, iter->key);
-    if (!prefix) {
-        return NULL;
-    }
-
-    // push the first iter_pos
-    ipos.iptr = prefix;
-    ipos.pos = 0;
-    ipos.op.index = iter->key->size-1;
-    PUSHI(iter->stack0, &ipos);
-
-    // set flags
-    iter->first = 1;
-    iter->last = 0;
-    iter->fail = 0;
-    iter->fail_reason = UNDEFINED;
-    iter->trie->dirty = 0;
-
-    return iter;
-}
-
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
@@ -628,7 +594,63 @@ iter_t *itersuffixes_next(iter_t *iter)
     return iter;
 }
 
+iter_t *itersuffixes_reset(iter_t *iter)
+{
+    trie_node_t *prefix;
+    iter_pos_t ipos;
+
+    // pop all elems first
+    while(POPI(iter->stack0))
+        ;
+
+    // return key->size to original
+    iter->key->size = iter->key->alloc_size-iter->max_depth;
+
+    // get prefix in the trie
+    prefix = _trie_prefix(iter->trie->root, iter->key);
+    if (!prefix) {
+        return NULL;
+    }
+
+    // push the first iter_pos
+    ipos.iptr = prefix;
+    ipos.pos = 0;
+    ipos.op.index = iter->key->size-1;
+    PUSHI(iter->stack0, &ipos);
+
+    // set flags
+    iter->first = 1;
+    iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
+
+    return iter;
+}
+
 void itersuffixes_deinit(iter_t *iter)
+{
+    assert(iter != NULL);
+
+    ITERATOR_FREE(iter);
+}
+
+iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+{
+    return NULL   
+}
+
+iter_t *iterprefixes_next(iter_t *iter)
+{
+    return NULL;
+}
+
+iter_t *iterprefixes_reset(iter_t *iter)
+{
+    return NULL;
+}
+
+void iterprefixes_deinit(iter_t *iter)
 {
     assert(iter != NULL);
 

@@ -36,7 +36,8 @@ typedef struct trie_node_s {
 } trie_node_t;
 
 typedef struct trie_s {
-    int dirty;
+    int dirty; // externally reset, internally set. Used to detect if trie  
+               // changed during iteration
     unsigned long node_count;
     unsigned long item_count;
     unsigned long height; // max height of the trie (max(len(string)))
@@ -103,15 +104,19 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del_fast(trie_t *t, trie_key_t *key);
 
 // Enumeration functions 
-// Suffix Enumerations
+// Suffix
 void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
 iter_t *itersuffixes_next(iter_t *iter);
-void itersuffixes_deinit(iter_t *iter);
 iter_t *itersuffixes_reset(iter_t *iter);
-// Prefix Enumerations
+void itersuffixes_deinit(iter_t *iter);
+// Prefix
 void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
+iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *iterprefixes_next(iter_t *iter);
+iter_t *iterprefixes_reset(iter_t *iter);
+void iterprefixes_deinit(iter_t *iter);
 
 #endif
