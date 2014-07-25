@@ -9,7 +9,7 @@
 // Note 1:
 // trie_key_t->char_size <= sizeof(TRIE_CHAR). This is the only requirement. 
 // That is obvious because for example we cannot hold a 6-byte char. in a 4-byte
-// character trie. Chars with different character sizes to live together 
+// character trie. Chars with different character sizes should live together 
 // happily in our trie. 
 
 // Note 2:

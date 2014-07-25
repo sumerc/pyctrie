@@ -9,14 +9,11 @@ void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
     *(TRIE_CHAR *)&k->s[index*k->char_size] = in;
 }
 
-int KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
+void KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
 {
-    if (index >= k->size) {
-        return 0;
-    }
-
+    assert(index < k->size);
+    
     *out = (TRIE_CHAR)k->s[index*k->char_size];
-    return 1;
 }
 
 void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index,
@@ -198,8 +195,10 @@ trie_node_t *_trie_prefix(trie_node_t *t, trie_key_t *key)
     i = 0;
     parent = t;
     curr = t->children;
-    while(KEY_CHAR_READ(key, i, &ch))
+    while(i < key->size)
     {
+        KEY_CHAR_READ(key, i, &ch);
+
         while(curr && curr->key != ch) {
             curr = curr->next;
         }
@@ -237,8 +236,9 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
     i = 0;
     parent = t->root;
     curr = t->root->children;
-    while(KEY_CHAR_READ(key, i, &ch))
+    while(i < key->size)
     {
+        KEY_CHAR_READ(key, i, &ch);
         while(curr && curr->key != ch) {
             curr = curr->next;
         }
@@ -286,8 +286,9 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
     i = 0;
     parent = t->root;
     curr = t->root->children;
-    while(KEY_CHAR_READ(key, i, &ch))
+    while(i < key->size)
     {
+        KEY_CHAR_READ(key, i, &ch);
         prev = it = curr;
         while(it && it->key != ch) {
             prev = it;
@@ -406,8 +407,10 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_enum_cbk_t cbk, void* cbk_arg)
 {
     trie_key_t *kp;
+    trie_key_t k;
     trie_node_t *p;
     unsigned long i;
+    TRIE_CHAR ch;
 
     if (key->size == 0) {
         return;
@@ -421,14 +424,16 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     KEYCPY(kp, key, 0, 0, key->size);
     kp->size = 1; // start from first character
 
-    // TODO: Can be optimized more. we have redundant trie_prefix calc. at every iteration.
+    p = t->root;
     for(i=0;i<key->size;i++)
     {
         if (i == max_depth) {
             break;
         }
 
-        p = _trie_prefix(t->root, kp);
+        KEY_CHAR_READ(kp, i, &ch);
+        k.s = (char *)&ch; k.size = 1; k.char_size = kp->char_size;
+        p = _trie_prefix(p, &k);
         if (!p) {
             break;
         }

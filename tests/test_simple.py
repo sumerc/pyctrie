@@ -51,8 +51,11 @@ class TestBasic(unittest.TestCase):
     def test_prefixes(self):
         tr = self._create_trie()
         self.assertEqual(len(tr.prefixes(u"inn", 1)), 1)
-        
-
+        self.assertEqual(len(tr.prefixes(u"inn")), 3)
+        self.assertEqual(tr.prefixes(u"inn")[0], u"i")
+        self.assertEqual(tr.prefixes(u"inn")[1], u"in")
+        self.assertEqual(tr.prefixes(u"inn")[2], u"inn")
+            
     def test_suffixes(self):
         
         # del suffixes after referencing
