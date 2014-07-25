@@ -402,6 +402,48 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     return;
 }
 
+void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    trie_enum_cbk_t cbk, void* cbk_arg)
+{
+    trie_key_t *kp;
+    trie_node_t *p;
+    unsigned long i;
+
+    if (key->size == 0) {
+        return;
+    }
+
+    // alloc a key that can hold the key itself
+    kp = KEYCREATE((key->size), sizeof(TRIE_CHAR));
+    if (!kp) {
+        return;
+    }
+    KEYCPY(kp, key, 0, 0, key->size);
+    kp->size = 1; // start from first character
+
+    // TODO: Can be optimized more. we have redundant trie_prefix calc. at every iteration.
+    for(i=0;i<key->size;i++)
+    {
+        if (i == max_depth) {
+            break;
+        }
+
+        p = _trie_prefix(t->root, kp);
+        if (!p) {
+            break;
+        }
+        if(p->value)
+        {
+            cbk(kp, cbk_arg);
+        }
+        kp->size++;
+    }
+
+    KEYFREE(kp);
+    
+    return;
+}
+
 iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *r;

@@ -102,14 +102,16 @@ trie_node_t *trie_search(trie_t *t, trie_key_t *key);
 int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del_fast(trie_t *t, trie_key_t *key);
 
-// suffixes
+// Enumeration functions 
+// Suffix Enumerations
 void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
-
-// itersuffixes
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
 iter_t *itersuffixes_next(iter_t *iter);
 void itersuffixes_deinit(iter_t *iter);
 iter_t *itersuffixes_reset(iter_t *iter);
+// Prefix Enumerations
+void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    trie_enum_cbk_t cbk, void* cbk_arg);
 
 #endif

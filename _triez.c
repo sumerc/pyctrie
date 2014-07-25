@@ -298,7 +298,7 @@ static PyObject *Trie_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
     return (PyObject *)self;
 }
 
-/* Return 1 if `key` is in trie `op`, 0 if not, and -1 on error. */
+// Return 1 if `key` is in trie `op`, 0 if not, and -1 on error. 
 int Trie_contains(PyObject *op, PyObject *key)
 {
     trie_key_t k;
@@ -391,16 +391,19 @@ int _parse_traverse_args(TrieObject *t, PyObject *args, trie_key_t *k,
     return 1;
 }
 
-int _enum_suffixes(trie_key_t *k, void *arg)
+int _enum_keys(trie_key_t *k, void *arg)
 {
     PyObject *list;
     
     list = (PyObject *)arg;
-    
+
     PyList_Append(list, _TKEY_AS_PyUnicode(k));
-    
+
     return 0;
 }
+
+// TODO: Prefixes and Suffixes can be merged into one traverse function below. 
+//       We have lots of code duplication below.
 
 static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
 {
@@ -414,7 +417,7 @@ static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
     }
     
     sfxs = PyList_New(0);
-    suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_suffixes, sfxs);
+    suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
 }
@@ -430,6 +433,37 @@ static PyObject *Trie_itersuffixes(PyObject* selfobj, PyObject *args)
     }
 
     return _create_suffixiterator((TrieObject *)selfobj, &k, max_depth);
+}
+
+static PyObject *Trie_prefixes(PyObject* selfobj, PyObject *args)
+{
+    trie_key_t k;
+    unsigned long max_depth;
+    PyObject *sfxs;
+
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
+    {
+        return NULL;
+    }
+    
+    sfxs = PyList_New(0);
+    prefixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
+    
+    return sfxs;
+}
+
+static PyObject *Trie_iterprefixes(PyObject* selfobj, PyObject *args)
+{
+    trie_key_t k;
+    unsigned long max_depth;
+
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
+    {
+        return NULL;
+    }
+
+    return NULL;
+    //return _create_suffixiterator((TrieObject *)selfobj, &k, max_depth);
 }
 
 // Iterate keys start from root, depth is trie's height.
@@ -481,6 +515,10 @@ static PyMethodDef Trie_methods[] = {
         "T.iter_suffixes() -> a set-like object providing a view on T's suffixes"},
     {"suffixes", Trie_suffixes, METH_VARARGS, 
         "T.suffixes() -> a list containing T's suffixes"},
+    {"iter_prefixes", Trie_iterprefixes, METH_VARARGS, 
+        "T.iter_prefixes() -> a set-like object providing a view on T's prefixes"},
+    {"prefixes", Trie_prefixes, METH_VARARGS, 
+        "T.suffixes() -> a list containing T's prefixes"},
     {NULL}  /* Sentinel */
 };
 
