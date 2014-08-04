@@ -21,6 +21,9 @@
 // available because PEP393 internally arranges the required character size and use
 // appropriate encoding which eliminates the necessity of surrogate pairs. 
 
+// Note 3:
+// All access to key->s shall be done with regard to char_size of the key.
+
 typedef struct trie_key_s {
     char *s; // encoded string buffer
     unsigned long size; // how many characters (or code points) in encoded string
@@ -103,7 +106,15 @@ trie_node_t *trie_search(trie_t *t, trie_key_t *key);
 int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del_fast(trie_t *t, trie_key_t *key);
 
-// Enumeration functions 
+// Enumeration functions
+
+// Function pointer declarations
+typedef iter_t *(*trie_iter_init_func_t)(trie_t *t, trie_key_t *key, 
+    unsigned long max_depth);
+typedef iter_t *(*trie_iter_next_func_t)(iter_t *iter);
+typedef iter_t *(*trie_iter_reset_func_t)(iter_t *iter);
+typedef void (*trie_iter_deinit_func_t)(iter_t *iter);
+
 // Suffix
 void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
@@ -118,5 +129,12 @@ iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
 iter_t *iterprefixes_next(iter_t *iter);
 iter_t *iterprefixes_reset(iter_t *iter);
 void iterprefixes_deinit(iter_t *iter);
+// Correct
+void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
+    trie_enum_cbk_t cbk, void* cbk_arg);
+iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *itercorrections_next(iter_t *iter);
+iter_t *itercorrections_reset(iter_t *iter);
+void itercorrections_deinit(iter_t *iter);
 
 #endif

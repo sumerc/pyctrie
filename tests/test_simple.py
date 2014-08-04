@@ -6,6 +6,8 @@ import multiprocessing # added to fix http://bugs.python.org/issue15881 for Py2.
 
 _SAVE_PROFILE_RESULTS = True
 
+#import faulthandler; faulthandler.enable()
+
 class TestBasic(unittest.TestCase):
 
     # create a trie just like in http://en.wikipedia.org/wiki/Trie

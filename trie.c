@@ -399,8 +399,6 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     _suffixes(prefix, kp, index, cbk, cbk_arg);
 
     KEYFREE(kp);
-    
-    return;
 }
 
 void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
@@ -639,6 +637,7 @@ void itersuffixes_deinit(iter_t *iter)
     ITERATOR_FREE(iter);
 }
 
+
 iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
@@ -770,4 +769,96 @@ void iterprefixes_deinit(iter_t *iter)
     assert(iter != NULL);
 
     ITERATOR_FREE(iter);
+}
+
+void _corrections(trie_t * t, trie_node_t *pprefix, trie_key_t *key, 
+    unsigned long c_index, unsigned long c_depth, trie_enum_cbk_t cbk, void* cbk_arg)
+{
+/*
+    unsigned long klen;
+    trie_key_t pk;
+    trie_node_t *prefix,*p;
+    TRIE_CHAR ch;
+
+    // search prefix
+    prefix = pprefix;
+    if (c_index > 0) {
+        KEY_CHAR_READ(key, c_index-1, &ch);
+        pk.s = &ch; pk.size = 1;
+        prefix = trie_prefix(pprefix, &pk);
+        if (!prefix) {
+            return;
+        }
+    }
+
+    // search suffix (which will complete the search for the full key)
+    klen = key->len;
+    pk.s = &key->s[c_index]; pk.len = klen-c_index;
+    p = trie_prefix(prefix, &pk);
+    if (p && p->value) {
+        cbk(key, cbk_arg);
+    }
+
+    // check bounds/depth
+    if ((c_index >= klen) || (c_depth == 0)) {
+        return;
+    }
+
+    if (klen > 1)
+    {
+        key->size -= 1;
+        KEY_CHAR_READ(key, c_index, &ch);
+        memmove(&key->s[c_index], &key->s[c_index+key->char_size], 
+            (key->size-c_index)*key->char_size);
+
+        _corrections(t, t->root, key, 0, c_depth-1, cbk, cbk_arg);
+
+        key->size += 1;
+        memmove(&key->s[c_index+key->char_size], &key->s[c_index], 
+            (key->size-c_index)*key->char_size);
+        KEY_CHAR_WRITE(key, c_index, ch);
+    }
+
+    // .. TODO: implement
+*/
+}
+
+void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
+    trie_enum_cbk_t cbk, void* cbk_arg)
+{
+    trie_key_t *kp;
+    trie_node_t *prefix;
+    unsigned long index;
+
+    // alloc a key that can hold size + max_depth chars.
+    kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));
+    if (!kp) {
+        return;
+    }
+    KEYCPY(kp, key, 0, 0, key->size);
+    kp->size = key->size;
+    
+    _corrections(t, t->root, kp, 0, max_depth, cbk, cbk_arg);
+
+    KEYFREE(kp);
+}
+
+iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+{
+    return NULL;
+}
+
+iter_t *itercorrections_next(iter_t *iter)
+{
+    return NULL;
+}
+
+iter_t *itercorrections_reset(iter_t *iter)
+{
+    return NULL;
+}
+
+void itercorrections_deinit(iter_t *iter)
+{
+    return;
 }
