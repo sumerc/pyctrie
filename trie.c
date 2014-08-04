@@ -422,7 +422,9 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
         return;
     }
     KEYCPY(kp, key, 0, 0, key->size);
-    kp->size = 1; // start from first character
+    // TODO: What if first char is a surrogate pair, do we handle that?
+    kp->size = 1; // start from first character 
+
 
     p = t->root;
     for(i=0;i<key->size;i++)
@@ -449,17 +451,19 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     return;
 }
 
-iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth)
+iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    unsigned long alloc_size)
 {
     iter_t *r;
     iter_stack_t *k;
     trie_key_t *kp;
 
     // alloc a key that can hold size + max_depth chars.
-    kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));
+    kp = KEYCREATE(alloc_size, sizeof(TRIE_CHAR));
     if (!kp) {
         return NULL;
     }
+
     KEYCPY(kp, key, 0, 0, key->size);
     kp->size = key->size;
 
@@ -508,8 +512,8 @@ iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
         return NULL;
     }
 
-    // finally create the iterator obj
-    iter = ITERATOR_CREATE(t, key, max_depth);
+    // create the iterator obj
+    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth));
     if (!iter) {
         return NULL;
     }
@@ -637,17 +641,128 @@ void itersuffixes_deinit(iter_t *iter)
 
 iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
-    return NULL   
+    iter_t *iter;
+    trie_node_t *prefix;
+    unsigned long real_size;
+
+    if (key->size == 0) {
+        return NULL;
+    }
+
+    // search first char
+    real_size = key->size;
+    key->size = 1;
+    prefix = _trie_prefix(t->root, key);
+    if (!prefix) {
+        return NULL;
+    }
+    key->size = real_size;
+
+    // create the iterator obj
+    iter = ITERATOR_CREATE(t, key, max_depth, key->size);
+    if (!iter) {
+        return NULL;
+    }
+    iterprefixes_reset(iter);
+
+    return iter;
 }
 
 iter_t *iterprefixes_next(iter_t *iter)
 {
-    return NULL;
+    iter_pos_t *ip;
+    trie_key_t k;
+    trie_node_t *p;
+    TRIE_CHAR ch;
+
+    while(1)
+    {
+        // trie changed during iteration?
+        if (iter->trie->dirty) {
+            iter->fail = 1;
+            iter->fail_reason = CHG_WHILE_ITER;
+            break;
+        }
+       
+        // return key size to original, again
+        iter->key->size = iter->key->alloc_size;
+
+        // peek stack
+        ip = POPI(iter->stack0);
+        if (!ip) { // no elem in stack0
+            iter->last = 1;
+            break;
+        }
+
+        if (iter->first) {
+            iter->first = 0;
+        }
+
+        // read and increment index+iptr
+        if (ip->op.index > iter->key->size) {
+            iter->last = 1;
+            break;
+        }
+
+        if (ip->pos == 0 && ip->iptr->value)
+        {
+            ip->pos = 1;
+            iter->key->size = ip->op.index;
+            PUSHI(iter->stack0, ip);
+            break;
+        }
+
+        if (ip->op.index < iter->key->size) {
+            KEY_CHAR_READ(iter->key, ip->op.index, &ch);
+
+            k.s = (char *)&ch; k.size = 1; k.char_size = iter->key->char_size;
+            p = _trie_prefix(ip->iptr, &k);
+            if (p) {
+                
+                ip->op.index++;
+                ip->iptr = p;
+                ip->pos = 0;
+                PUSHI(iter->stack0, ip);
+            }
+        }
+    }
+
+    return iter;
 }
 
 iter_t *iterprefixes_reset(iter_t *iter)
 {
-    return NULL;
+    iter_pos_t ipos;
+    trie_node_t *prefix;
+
+    // pop all elems first
+    while(POPI(iter->stack0))
+        ;
+
+    // search first char
+    iter->key->size = 1;
+    prefix = _trie_prefix(iter->trie->root, iter->key);
+    if (!prefix) {
+        return NULL;
+    }
+
+    // return key->size to original
+    iter->key->size = iter->key->alloc_size; 
+
+    // push the first iter_pos
+    ipos.iptr = prefix;
+    ipos.op.index = 1;
+    ipos.pos = 0;
+    PUSHI(iter->stack0, &ipos);
+
+    // set flags
+    iter->first = 1;
+    iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
+
+    return iter;
 }
 
 void iterprefixes_deinit(iter_t *iter)

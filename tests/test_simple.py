@@ -50,14 +50,24 @@ class TestBasic(unittest.TestCase):
     """
     def test_prefixes(self):
         tr = self._create_trie()
+
         self.assertEqual(len(tr.prefixes(u"inn", 1)), 1)
         self.assertEqual(len(tr.prefixes(u"inn")), 3)
         self.assertEqual(tr.prefixes(u"inn")[0], u"i")
         self.assertEqual(tr.prefixes(u"inn")[1], u"in")
         self.assertEqual(tr.prefixes(u"inn")[2], u"inn")
-            
-    def test_suffixes(self):
+        prefixes = tr.iter_prefixes()
+        self.assertEqual(len(list(prefixes)), 0)
         
+        iprefixes = list(tr.iter_prefixes(u"inn"))
+        prefixes = tr.prefixes(u"inn")
+        self.assertTrue(set(prefixes), set(iprefixes))
+  
+        iprefixes = tr.iter_prefixes(u"inn")
+        del tr[u"in"]
+        self.assertRaises(RuntimeError, list, iprefixes)
+
+    def test_suffixes(self):
         # del suffixes after referencing
         tr = self._create_trie()
         suffixes = tr.iter_suffixes(u"in")
@@ -65,7 +75,12 @@ class TestBasic(unittest.TestCase):
         del tr[u"inn"]
         self.assertRaises(RuntimeError, list, suffixes)
         self.assertRaises(RuntimeError, list, suffixes)
-        
+
+        tr = self._create_trie()
+        suffixes = tr.iter_suffixes(u"i")
+        del tr[u"in"]
+        self.assertRaises(RuntimeError, list, suffixes)
+
         # trie self_iter and suffixes should be same
         suffixes = tr.iter_suffixes()
         self.assertEqual(len(list(tr)), len(list(suffixes)))
@@ -159,7 +174,7 @@ class TestBasic(unittest.TestCase):
         for x in suffixes: pass
         sfx2 = tr.iter_suffixes(u"")
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
-       
+
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)

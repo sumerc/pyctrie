@@ -122,6 +122,12 @@ typedef struct {
     iter_t *_iter;
 } TrieSuffixesObject;
 
+typedef struct {
+    PyObject_HEAD
+    TrieObject *_trieobj; // used for Reference Count
+    iter_t *_iter;
+} TriePrefixesObject;
+
 // TrieSuffixes methods
 
 static void Triesuffixes_dealloc(TrieSuffixesObject *tko)
@@ -164,7 +170,7 @@ PyObject *Triesuffixes_selfiter(PyObject *obj)
 
     tko = (TrieSuffixesObject *)obj;
     Py_INCREF(obj);
-    if (tko->_iter) {
+    if (tko->_iter && !tko->_iter->first) {
         itersuffixes_reset(tko->_iter);
     }
     return obj;
@@ -203,6 +209,91 @@ PyTypeObject TrieSuffixesType = {
     0,                              /* tp_weaklistoffset */
     Triesuffixes_selfiter,                /* tp_iter */
     (iternextfunc)Triesuffixes_next,    /* tp_iternext */
+    0,                              /* tp_methods */
+    0,
+};
+
+// TriePrefixes methods
+
+static void Trieprefixes_dealloc(TriePrefixesObject *tko)
+{
+    Py_XDECREF(tko->_trieobj);
+    if (tko->_iter) { // might be an empty iterator
+        iterprefixes_deinit(tko->_iter);
+    }
+    PyObject_GC_Del(tko);
+}
+
+static PyObject *Trieprefixes_next(TriePrefixesObject *tko)
+{
+    PyObject *ks;
+    iter_t *iter;
+
+    if (!tko->_iter) {
+        return NULL;
+    }
+    
+    iter = iterprefixes_next(tko->_iter);
+    if (iter->fail) {
+        PyErr_SetString(PyExc_RuntimeError, "trie changed during iteration.");
+        return NULL;
+    }
+    
+    if (iter->last) {
+        iterprefixes_reset(tko->_iter);
+        return NULL;
+    }
+    
+    ks = _TKEY_AS_PyUnicode(iter->key);
+    
+    return ks;
+}
+
+PyObject *Trieprefixes_selfiter(PyObject *obj)
+{
+    TriePrefixesObject * tko;
+
+    tko = (TriePrefixesObject *)obj;
+    Py_INCREF(obj);
+    if (tko->_iter && !tko->_iter->first) {
+        iterprefixes_reset(tko->_iter);
+    }
+    return obj;
+}
+
+PyTypeObject TriePrefixesType = {
+#ifdef IS_PY3K
+    PyVarObject_HEAD_INIT(NULL, 0)
+#else
+    PyObject_HEAD_INIT(NULL)
+    0,                                  /*ob_size*/
+#endif
+    "TriePrefixes",                     /* tp_name */
+    sizeof(TriePrefixesObject),         /* tp_basicsize */
+    0,                                  /* tp_itemsize */
+    (destructor)Trieprefixes_dealloc,   /* tp_dealloc */
+    0,                              /* tp_print */
+    0,                              /* tp_getattr */
+    0,                              /* tp_setattr */
+    0,                              /* tp_reserved */
+    0,                              /* tp_repr */
+    0,                              /* tp_as_number */
+    0,                              /* tp_as_sequence */
+    0,                              /* tp_as_mapping */
+    0,                              /* tp_hash */
+    0,                              /* tp_call */
+    0,                              /* tp_str */
+    PyObject_GenericGetAttr,        /* tp_getattro */
+    0,                              /* tp_setattro */
+    0,                              /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
+    0,                              /* tp_doc */
+    0,                              /* tp_traverse */
+    0,                              /* tp_clear */
+    0,                              /* tp_richcompare */
+    0,                              /* tp_weaklistoffset */
+    Trieprefixes_selfiter,                /* tp_iter */
+    (iternextfunc)Trieprefixes_next,    /* tp_iternext */
     0,                              /* tp_methods */
     0,
 };
@@ -335,7 +426,24 @@ static PyObject *_create_suffixiterator(TrieObject *trieobj, trie_key_t *key,
     tko->_iter = itersuffixes_init(trieobj->ptrie, key, max_depth);
     PyObject_GC_Track(tko);
     return (PyObject *)tko;
+}
+
+static PyObject *_create_prefixiterator(TrieObject *trieobj, trie_key_t *key, 
+    unsigned long max_depth)
+{
+    TriePrefixesObject *tko;
+
+    tko = PyObject_GC_New(TriePrefixesObject, &TriePrefixesType);
+    if (tko == NULL) {
+        // TODO: Print Mem Err
+        return NULL;
+    }    
+    tko->_trieobj = trieobj;
+    Py_INCREF(tko->_trieobj);
     
+    tko->_iter = iterprefixes_init(trieobj->ptrie, key, max_depth);
+    PyObject_GC_Track(tko);
+    return (PyObject *)tko;
 }
 
 int _parse_traverse_args(TrieObject *t, PyObject *args, trie_key_t *k, 
@@ -462,8 +570,7 @@ static PyObject *Trie_iterprefixes(PyObject* selfobj, PyObject *args)
         return NULL;
     }
 
-    return NULL;
-    //return _create_suffixiterator((TrieObject *)selfobj, &k, max_depth);
+    return _create_prefixiterator((TrieObject *)selfobj, &k, max_depth);
 }
 
 // Iterate keys start from root, depth is trie's height.
