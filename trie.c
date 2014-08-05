@@ -2,18 +2,59 @@
 #include "trie.h"
 #include "string.h"
 
+void _printTKEY2(trie_key_t k)
+{
+    unsigned int i;
+    
+    printf("key->s:%s, key->size:%d, key->char_size:%d\r\n", k.s, k.size, k.char_size);
+    for(i=0;i<k.size;i++) {
+        if (k.char_size == 1) {
+            printf("char[%u]:0x%hhxuh\r\n", i, *(char *)&k.s[i*k.char_size]);
+        } else if (k.char_size == 2) {
+            printf("char[%u]:0x%hxh\n", i, *(short *)&k.s[i*k.char_size]);
+        } else if (k.char_size == 4) {
+            printf("char[%u]:0x%xh\r\n", i, *(long *)&k.s[i*k.char_size]);
+        }
+    }
+}
+
 void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 {
-    assert(k->char_size <= sizeof(TRIE_CHAR));
+    assert(k->char_size >= sizeof(TRIE_CHAR));
 
     *(TRIE_CHAR *)&k->s[index*k->char_size] = in;
 }
 
 void KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
 {
-    assert(index < k->size);
-    
-    *out = (TRIE_CHAR)k->s[index*k->char_size];
+    // TODO: Put assert back, we temporarily put this for testing corrections()
+    // quickly. 
+    //assert(index < k->alloc_size);
+    assert(k->char_size <= sizeof(TRIE_CHAR));
+
+    if (index >= k->size) {
+        return;
+    }
+
+    // TODO: Below code assumes short is 2 bytes and long is 4 bytes.
+    // That might not be true. Think about a better solution.
+    // TODO: Also, compiler gives warning when TRIE_CHAR is smaller than
+    // char_size, so assertion() might not be enough.
+    switch(k->char_size)
+    {
+        case 1:
+            *out = *(char *)&k->s[index*k->char_size];
+            break;
+        case 2:
+            *out = *(short *)&k->s[index*k->char_size];
+            break;
+        case 4:
+            *out = *(long *)&k->s[index*k->char_size];
+            break;
+        default:
+            assert(0 == 1); // unsupported char_size
+            break;
+    }
 }
 
 void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index,
@@ -239,6 +280,7 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
     while(i < key->size)
     {
         KEY_CHAR_READ(key, i, &ch);
+        
         while(curr && curr->key != ch) {
             curr = curr->next;
         }
@@ -275,7 +317,7 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
 // try to delete the node if no children is associated with it. Harder to implement
 // however performance is better as we iterate key only once.
 // Complexity: O(m)
-int trie_del_fast(trie_t *t, trie_key_t *key)
+int trie_del(trie_t *t, trie_key_t *key)
 {
     unsigned int i, found;
     trie_node_t *curr, *prev, *it, *parent;
@@ -349,7 +391,7 @@ int trie_del_fast(trie_t *t, trie_key_t *key)
 
 void _suffixes(trie_node_t *p, trie_key_t *key, unsigned long index, 
     trie_enum_cbk_t cbk, void* cbk_arg)
-{    
+{
     if (p->value) {
         cbk(key, cbk_arg);
     }
@@ -357,10 +399,8 @@ void _suffixes(trie_node_t *p, trie_key_t *key, unsigned long index,
     if (index == key->alloc_size) {
         return;
     }
-
     p = p->children;
     while(p){
-
         KEY_CHAR_WRITE(key, index, p->key);
         key->size = index+1;
         
@@ -393,7 +433,7 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     
     index = 0;
     if (kp->size > 0) {
-        index = kp->size-1;
+        index = kp->size;
     }
 
     _suffixes(prefix, kp, index, cbk, cbk_arg);
@@ -774,61 +814,112 @@ void iterprefixes_deinit(iter_t *iter)
 void _corrections(trie_t * t, trie_node_t *pprefix, trie_key_t *key, 
     unsigned long c_index, unsigned long c_depth, trie_enum_cbk_t cbk, void* cbk_arg)
 {
-/*
-    unsigned long klen;
+    unsigned long ksize,kchsize;
     trie_key_t pk;
     trie_node_t *prefix,*p;
-    TRIE_CHAR ch;
+    TRIE_CHAR ch,ch1;
+
+    //printf("_corrections\n");
 
     // search prefix
     prefix = pprefix;
     if (c_index > 0) {
         KEY_CHAR_READ(key, c_index-1, &ch);
-        pk.s = &ch; pk.size = 1;
-        prefix = trie_prefix(pprefix, &pk);
+        pk.s = (char *)&ch; pk.size = 1; pk.char_size = key->char_size;
+        prefix = _trie_prefix(pprefix, &pk);
         if (!prefix) {
             return;
         }
     }
 
     // search suffix (which will complete the search for the full key)
-    klen = key->len;
-    pk.s = &key->s[c_index]; pk.len = klen-c_index;
-    p = trie_prefix(prefix, &pk);
+    ksize = key->size;
+    kchsize = key->char_size;
+    pk.s = &key->s[c_index*kchsize]; pk.size = ksize-c_index; 
+    pk.char_size = key->char_size;
+    p = _trie_prefix(prefix, &pk);
     if (p && p->value) {
         cbk(key, cbk_arg);
     }
 
+    //_printTKEY2(*key);
+
     // check bounds/depth
-    if ((c_index >= klen) || (c_depth == 0)) {
+    if ((c_index > ksize) || (c_depth == 0)) {
         return;
     }
 
-    if (klen > 1)
+    // deletion
+    if (ksize > 1 && c_index < ksize)
     {
-        key->size -= 1;
         KEY_CHAR_READ(key, c_index, &ch);
-        memmove(&key->s[c_index], &key->s[c_index+key->char_size], 
-            (key->size-c_index)*key->char_size);
+        key->size -= 1;
+        memmove(&key->s[(c_index)*kchsize], &key->s[(c_index+1) * kchsize], 
+            (key->size-c_index)*kchsize);
 
         _corrections(t, t->root, key, 0, c_depth-1, cbk, cbk_arg);
 
         key->size += 1;
-        memmove(&key->s[c_index+key->char_size], &key->s[c_index], 
+        memmove(&key->s[(c_index+1) * kchsize], &key->s[(c_index)*kchsize], 
             (key->size-c_index)*key->char_size);
         KEY_CHAR_WRITE(key, c_index, ch);
     }
 
-    // .. TODO: implement
-*/
+    // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
+    if (c_index < ksize-1) 
+    {
+        KEY_CHAR_READ(key, c_index, &ch);
+        KEY_CHAR_READ(key, c_index+1, &ch1);
+        KEY_CHAR_WRITE(key, c_index, ch1);
+        KEY_CHAR_WRITE(key, c_index+1, ch);
+
+        _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
+
+        KEY_CHAR_READ(key, c_index, &ch);
+        KEY_CHAR_READ(key, c_index+1, &ch1);
+        KEY_CHAR_WRITE(key, c_index, ch1);
+        KEY_CHAR_WRITE(key, c_index+1, ch);
+    }
+
+    // insertion (prefix + x + suffix[:])
+    p = prefix->children;
+    while(p)
+    {
+        key->size += 1;
+        memmove(&key->s[(c_index+1) * kchsize], &key->s[(c_index)*kchsize], 
+            (key->size-c_index-1)*key->char_size);
+        KEY_CHAR_WRITE(key, c_index, p->key);
+
+        _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
+
+        key->size -= 1;
+        memmove(&key->s[(c_index)*kchsize], &key->s[(c_index+1) * kchsize], 
+            (key->size-c_index)*kchsize);
+
+        p = p->next;
+    }
+
+    // alteration (prefix + x + suffix[1:])    
+    p = prefix->children;
+    while(p) 
+    {
+        KEY_CHAR_READ(key, c_index, &ch);
+        KEY_CHAR_WRITE(key, c_index, p->key);
+
+        _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
+        
+        KEY_CHAR_WRITE(key, c_index, ch);
+
+        p = p->next;
+    }
+
+    _corrections(t, prefix, key, c_index+1, c_depth, cbk, cbk_arg);
 }
 
 void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_enum_cbk_t cbk, void* cbk_arg)
 {
     trie_key_t *kp;
-    trie_node_t *prefix;
-    unsigned long index;
 
     // alloc a key that can hold size + max_depth chars.
     kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));

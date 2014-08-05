@@ -24,6 +24,12 @@
 // Note 3:
 // All access to key->s shall be done with regard to char_size of the key.
 
+// Note 4:
+// We may hold surrogate-pairs as different nodes, so the max_depth value in 
+// prefix/suffix like functions may mean different things. User may specify 
+// max_depth as '1', however our trie does not treat this one as one char. 
+// Surrogate pairs may confuse the value.
+
 typedef struct trie_key_s {
     char *s; // encoded string buffer
     unsigned long size; // how many characters (or code points) in encoded string
@@ -104,7 +110,7 @@ void trie_destroy(trie_t *t);
 unsigned long trie_mem_usage(trie_t *t);
 trie_node_t *trie_search(trie_t *t, trie_key_t *key);
 int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
-int trie_del_fast(trie_t *t, trie_key_t *key);
+int trie_del(trie_t *t, trie_key_t *key);
 
 // Enumeration functions
 
@@ -114,6 +120,8 @@ typedef iter_t *(*trie_iter_init_func_t)(trie_t *t, trie_key_t *key,
 typedef iter_t *(*trie_iter_next_func_t)(iter_t *iter);
 typedef iter_t *(*trie_iter_reset_func_t)(iter_t *iter);
 typedef void (*trie_iter_deinit_func_t)(iter_t *iter);
+
+// TODO: All functions should start with trie_XXX() prefix.
 
 // Suffix
 void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 

@@ -262,7 +262,7 @@ static int Trie_ass_sub(TrieObject *mp, PyObject *key, PyObject *val)
         }
         Py_DECREF((PyObject *)w->value);
         
-        trie_del_fast(mp->ptrie, &k);// no need for ret check as we already done above.
+        trie_del(mp->ptrie, &k);// no need for ret check as we already done above.
     } else {
         Py_INCREF(val);
         if(!trie_add(mp->ptrie, &k, (TRIE_DATA)val)) {
@@ -404,11 +404,7 @@ int _parse_traverse_args(TrieObject *t, PyObject *args, trie_key_t *k,
 
 int _enum_keys(trie_key_t *k, void *arg)
 {
-    PyObject *list;
-    
-    list = (PyObject *)arg;
-
-    PyList_Append(list, _TKEY_AS_PyUnicode(k));
+    PySet_Add((PyObject *)arg, _TKEY_AS_PyUnicode(k));
 
     return 0;
 }
@@ -424,7 +420,7 @@ static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
         return NULL;
     }
     
-    sfxs = PyList_New(0);
+    sfxs = PySet_New(0);
     suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
@@ -454,7 +450,7 @@ static PyObject *Trie_prefixes(PyObject* selfobj, PyObject *args)
         return NULL;
     }
     
-    sfxs = PyList_New(0);
+    sfxs = PySet_New(0);
     prefixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
@@ -471,6 +467,28 @@ static PyObject *Trie_iterprefixes(PyObject* selfobj, PyObject *args)
 
     return _create_iterator((TrieObject *)selfobj, &k, max_depth, iterprefixes_init, 
         iterprefixes_next, iterprefixes_reset, iterprefixes_deinit);
+}
+
+static PyObject *Trie_corrections(PyObject* selfobj, PyObject *args)
+{
+    trie_key_t k;
+    unsigned long max_depth;
+    PyObject *sfxs;
+
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth))
+    {
+        return NULL;
+    }
+    
+    sfxs = PySet_New(0);
+    corrections(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
+    
+    return sfxs;
+}
+
+static PyObject *Trie_itercorrections(PyObject* selfobj, PyObject *args)
+{
+    return NULL;
 }
 
 // Iterate keys start from root, depth is trie's height.
@@ -526,7 +544,11 @@ static PyMethodDef Trie_methods[] = {
     {"iter_prefixes", Trie_iterprefixes, METH_VARARGS, 
         "T.iter_prefixes() -> a set-like object providing a view on T's prefixes"},
     {"prefixes", Trie_prefixes, METH_VARARGS, 
-        "T.suffixes() -> a list containing T's prefixes"},
+        "T.prefixes() -> a list containing T's prefixes"},
+    {"iter_corrections", Trie_itercorrections, METH_VARARGS, 
+        "T.iter_corrections() -> a set-like object providing a view on T's corrections"},
+    {"corrections", Trie_corrections, METH_VARARGS, 
+        "T.corrections() -> a list containing T's corrections"},
     {NULL}  /* Sentinel */
 };
 

@@ -8,6 +8,49 @@ _SAVE_PROFILE_RESULTS = True
 
 #import faulthandler; faulthandler.enable()
 
+_is_py3k = (sys.version_info >= (3, 0))
+if _is_py3k:
+    _range = range
+else:
+    _range = xrange
+
+def damerau_levenshtein(a, b):
+    if not a: return len(b)
+    if not b: return len(a)
+    return min(damerau_levenshtein(a[1:], b[1:])+(a[0] != b[0]), 
+        damerau_levenshtein(a[1:], b)+1, damerau_levenshtein(a, b[1:])+1)
+
+def damerau_levenshtein_fast(a, b):
+    """
+    From: http://mwh.geek.nz/2009/04/26/python-damerau-levenshtein-distance/
+
+    This implementation is O(N*M) time and O(M) space, for N and M the
+    lengths of the two sequences.
+    """
+    oneago = None
+    thisrow = list(range(1, len(b) + 1)) + [0]
+    for x in _range(len(a)):
+        twoago, oneago, thisrow = oneago, thisrow, [0] * len(b) + [x + 1]
+        for y in _range(len(b)):
+            delcost = oneago[y] + 1
+            addcost = thisrow[y - 1] + 1
+            subcost = oneago[y - 1] + (a[x] != b[y])
+            thisrow[y] = min(delcost, addcost, subcost)
+            # This block deals with transpositions
+            if (x > 0 and y > 0 and a[x] == b[y - 1]
+                and a[x-1] == b[y] and a[x] != b[y]):
+                thisrow[y] = min(thisrow[y], twoago[y - 2] + 1)
+    return thisrow[len(b) - 1]
+
+def _print_keys_as_hex(keys):
+    for k in keys:
+        HEX_COLUMN_SIZE = 14
+        for ch in k:
+            fs = "0x%xh" % (ord(ch), )
+            sys.stdout.write(fs)
+            sys.stdout.write(" " * (HEX_COLUMN_SIZE-len(fs)))
+        sys.stdout.write("\n")
+
 class TestBasic(unittest.TestCase):
 
     # create a trie just like in http://en.wikipedia.org/wiki/Trie
@@ -21,6 +64,28 @@ class TestBasic(unittest.TestCase):
         tr[u"i"] = 1
         tr[u"in"] = 1
         tr[u"inn"] = 1
+
+        return tr
+
+    def _create_trie2(self):
+        """
+        A complex trie trie including different char sizes together.
+        Note that Python2.x uses UTF16 internally which U+10001 starts mapping
+        chars to 2 bytes.
+        """
+        tr = triez.Trie()
+        # utf16,utf32: 0x0627
+        tr[u"\N{ARABIC LETTER ALEF}"] = 1 
+        tr[u"\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}"] = 1
+
+        # utf16: 0xD800 0xDF30, utf32: 0x00010330
+        tr[u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"] = 1 
+        tr[u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"] = 1
+
+        # utf16: 0xD800 0xDC01, utf32: 0x00010001
+        tr[u"\N{ARABIC LETTER ALEF}\N{LINEAR B SYLLABLE B038 E}"] = 1
+        tr[u"\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}"] = 1
+
         return tr
     """
     def test_temp(self):
@@ -50,24 +115,61 @@ class TestBasic(unittest.TestCase):
         for x in tr:
             print(x)
     """
+    
+    def test_corrections(self):
+        MAX_EDIT_DISTANCE = 4
+
+        tr = self._create_trie()
+        corrections = tr.corrections()
+        print(corrections)
+        self.assertEqual(len(corrections), len(tr))
+
+        #tr[u"\N{LINEAR B SYLLABLE B038 E}"] = 1
+        corrections = tr.corrections(u"i", 2)
+        self.assertEqual(corrections, set([u'i', u'to', u'inn', 
+            u'A', u'in']))
+
+        corrections = tr.corrections(u"i", 1)
+        self.assertEqual(corrections, set([u'i', u'A', u'in']))
+        #for x in corrections:
+        #    print("%s:%d" % (x, damerau_levenshtein(u"i", x)))
+        #print(corrections)
+
+        # for all trie's elements check correction(x, depth) is generating correct
+        # DL distance. depth should be 0 < x < 4.
+        for x in tr.suffixes():
+            for i in range(1, 4):
+                crs = tr.corrections(x, i)
+                for e in crs:
+                    self.assertTrue(damerau_levenshtein(x, e) <= i)
+
+
+    def test_corrections_unicode(self):
+        tr = self._create_trie2()
+        corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
+        #_print_keys_as_hex(corrections)
+        
     def test_prefixes(self):
         tr = self._create_trie()
 
         self.assertEqual(len(tr.prefixes(u"inn", 1)), 1)
         self.assertEqual(len(tr.prefixes(u"inn")), 3)
-        self.assertEqual(tr.prefixes(u"inn")[0], u"i")
-        self.assertEqual(tr.prefixes(u"inn")[1], u"in")
-        self.assertEqual(tr.prefixes(u"inn")[2], u"inn")
+        self.assertTrue(u"i" in tr.prefixes(u"inn"))
+        self.assertTrue(u"in" in tr.prefixes(u"inn"))
+        self.assertTrue(u"inn" in tr.prefixes(u"inn"))
         prefixes = tr.iter_prefixes()
         self.assertEqual(len(list(prefixes)), 0)
         
         iprefixes = list(tr.iter_prefixes(u"inn"))
         prefixes = tr.prefixes(u"inn")
-        self.assertTrue(set(prefixes), set(iprefixes))
+        self.assertTrue(prefixes, set(iprefixes))
   
         iprefixes = tr.iter_prefixes(u"inn")
         del tr[u"in"]
         self.assertRaises(RuntimeError, list, iprefixes)
+
+        self.assertEqual(len(tr.prefixes(u"inn")), 
+            len(list(tr.iter_prefixes(u"inn"))), 3)
 
     def test_suffixes(self):
         # del suffixes after referencing
@@ -101,8 +203,34 @@ class TestBasic(unittest.TestCase):
         # non-existent suffix iter
         tr = self._create_trie()
         self.assertEqual(len(list(tr.iter_suffixes(u"INVALID"))), 0)
-        
         self.assertEqual(len(tr.suffixes()), len(list(tr.iter_suffixes())))
+        self.assertEqual(len(tr.suffixes()), len(list(tr.iter_suffixes())), 
+            len(tr))
+      
+    def test_suffixes_unicode(self):
+        tr = self._create_trie2()
+        suffixes = tr.suffixes(u"\N{ARABIC LETTER ALEF}")
+        self.assertEqual(len(suffixes), 6)
+        suffixes = tr.suffixes(u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}")
+        self.assertTrue(set([u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A", 
+            u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"]) == suffixes)
+
+        suffixes = tr.suffixes(u"\N{ARABIC LETTER ALEF}", 3)
+        #_print_keys_as_hex(suffixes)
+        self.assertEqual(len(suffixes), 5)
+
+    def test_prefixes_unicode(self):
+        tr = self._create_trie2()
+        prefixes = tr.prefixes(u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A")
+        self.assertEqual(len(prefixes), 3)
+        self.assertTrue(set([u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A", 
+            u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}", 
+            u"\N{ARABIC LETTER ALEF}"]) == prefixes)
+        prefixes = tr.prefixes(u"\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}")
+        self.assertEqual(len(prefixes), 2)
+        self.assertTrue(set([u"\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}", 
+            u"\N{ARABIC LETTER ALEF}"]) == prefixes)
+
     
     def test_basic(self):
         self.assertEqual(triez.Trie().node_count(), 1)
@@ -176,7 +304,7 @@ class TestBasic(unittest.TestCase):
         for x in suffixes: pass
         sfx2 = tr.iter_suffixes(u"")
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
-
+    
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)
