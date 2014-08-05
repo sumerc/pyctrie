@@ -121,7 +121,6 @@ class TestBasic(unittest.TestCase):
 
         tr = self._create_trie()
         corrections = tr.corrections()
-        print(corrections)
         self.assertEqual(len(corrections), len(tr))
 
         #tr[u"\N{LINEAR B SYLLABLE B038 E}"] = 1
@@ -141,8 +140,7 @@ class TestBasic(unittest.TestCase):
             for i in range(1, 4):
                 crs = tr.corrections(x, i)
                 for e in crs:
-                    self.assertTrue(damerau_levenshtein(x, e) <= i)
-
+                    self.assertTrue(damerau_levenshtein_fast(x, e) <= i)
 
     def test_corrections_unicode(self):
         tr = self._create_trie2()
