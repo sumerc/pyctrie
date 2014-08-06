@@ -9,11 +9,11 @@ void _printTKEY2(trie_key_t k)
     printf("key->s:%s, key->size:%d, key->char_size:%d\r\n", k.s, k.size, k.char_size);
     for(i=0;i<k.size;i++) {
         if (k.char_size == 1) {
-            printf("char[%u]:0x%hhxuh\r\n", i, *(char *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%hhxuh\r\n", i, *(uint8_t *)&k.s[i*k.char_size]);
         } else if (k.char_size == 2) {
-            printf("char[%u]:0x%hxh\n", i, *(short *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%hxh\n", i, *(uint16_t *)&k.s[i*k.char_size]);
         } else if (k.char_size == 4) {
-            printf("char[%u]:0x%xh\r\n", i, *(long *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%xh\r\n", i, *(uint32_t *)&k.s[i*k.char_size]);
         }
     }
 }
@@ -27,23 +27,26 @@ void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 
 void KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
 {
-    assert(index < k->size);
+    //assert(index < k->size);
     assert(k->char_size <= sizeof(TRIE_CHAR));
 
-    // TODO: Below code assumes short is 2 bytes and long is 4 bytes.
-    // That might not be true. Think about a better solution.
+    if (index > k->size) // TODO: >= not sure about the inequality op.
+    {
+        return;
+    }
+
     // TODO: Also, compiler gives warning when TRIE_CHAR is smaller than
     // char_size, so assertion() might not be enough.
     switch(k->char_size)
     {
         case 1:
-            *out = *(char *)&k->s[index*k->char_size];
+            *out = *(uint8_t *)&k->s[index*k->char_size];
             break;
         case 2:
-            *out = *(short *)&k->s[index*k->char_size];
+            *out = *(uint16_t *)&k->s[index*k->char_size];
             break;
         case 4:
-            *out = *(long *)&k->s[index*k->char_size];
+            *out = *(uint32_t *)&k->s[index*k->char_size];
             break;
         default:
             assert(0 == 1); // unsupported char_size
@@ -804,19 +807,103 @@ void iterprefixes_deinit(iter_t *iter)
     ITERATOR_FREE(iter);
 }
 
+void _do(trie_key_t *key, iter_op_t *op)
+{
+    unsigned long ki,kchsize;
+    TRIE_CHAR ch1,ch2;
+ 
+    // init. common used vars
+    ki = op->index;
+    kchsize = key->char_size;
+
+    if (ki > key->size)
+    {
+        return;
+    }
+
+    switch(op->type)
+    {
+    case DELETE:
+        ki = op->auxindex;
+        KEY_CHAR_READ(key, ki, &op->dch);
+        key->size -= 1;
+        memmove(&key->s[(ki)*kchsize], &key->s[(ki+1) * kchsize], 
+            (key->size-ki)*kchsize);
+        break;
+    case TRANSPOSE:
+        KEY_CHAR_READ(key, ki, &ch1);
+        KEY_CHAR_READ(key, ki+1, &ch2);
+        KEY_CHAR_WRITE(key, ki, ch2);
+        KEY_CHAR_WRITE(key, ki+1, ch1);
+        break;
+    case INSERT:
+        key->size += 1;
+        memmove(&key->s[(ki+1) * kchsize], &key->s[(ki)*kchsize], 
+            (key->size-ki-1)*key->char_size);
+        KEY_CHAR_WRITE(key, ki, op->ich);
+        break;
+    case CHANGE:
+        KEY_CHAR_READ(key, ki, &op->dch);
+        KEY_CHAR_WRITE(key, ki, op->ich);
+        break;
+    default:
+        assert(0 == 1); // unsupported operation
+        break;
+    }
+}
+
+
+void _undo(trie_key_t *key, iter_op_t *op)
+{
+    unsigned long ki,kchsize;
+    TRIE_CHAR ch1,ch2;
+
+    // init. common used vars
+    ki = op->index;
+    kchsize = key->char_size;
+    
+    switch(op->type)
+    {
+    case DELETE:
+        ki = op->auxindex;
+        key->size += 1;
+        memmove(&key->s[(ki+1) * kchsize], &key->s[(ki)*kchsize], 
+            (key->size-ki)*key->char_size);
+        KEY_CHAR_WRITE(key, ki, op->dch);
+        break;
+    case TRANSPOSE:
+        KEY_CHAR_READ(key, ki, &ch1);
+        KEY_CHAR_READ(key, ki+1, &ch2);
+        KEY_CHAR_WRITE(key, ki, ch2);
+        KEY_CHAR_WRITE(key, ki+1, ch1);
+        break;
+    case INSERT:
+        key->size -= 1;
+        memmove(&key->s[(ki)*kchsize], &key->s[(ki+1) * kchsize], 
+            (key->size-ki)*kchsize);
+        break;
+    case CHANGE:
+        KEY_CHAR_WRITE(key, ki, op->dch);
+        break;
+    default:
+        assert(0 == 1); // unsupported operation
+        break;
+    }
+}
+
 void _corrections(trie_t * t, trie_node_t *pprefix, trie_key_t *key, 
     unsigned long c_index, unsigned long c_depth, trie_enum_cbk_t cbk, void* cbk_arg)
 {
     unsigned long ksize,kchsize;
     trie_key_t pk;
     trie_node_t *prefix,*p;
-    TRIE_CHAR ch,ch1;
-
-    //printf("_corrections\n");
+    TRIE_CHAR ch;
+    iter_op_t op;
 
     // search prefix
     prefix = pprefix;
     if (c_index > 0) {
+        //printf("dd %d:%d\n", c_index, key->size);
         KEY_CHAR_READ(key, c_index-1, &ch);
         pk.s = (char *)&ch; pk.size = 1; pk.char_size = key->char_size;
         prefix = _trie_prefix(pprefix, &pk);
@@ -845,63 +932,49 @@ void _corrections(trie_t * t, trie_node_t *pprefix, trie_key_t *key,
     // deletion
     if (ksize > 1 && c_index < ksize)
     {
-        KEY_CHAR_READ(key, c_index, &ch);
-        key->size -= 1;
-        memmove(&key->s[(c_index)*kchsize], &key->s[(c_index+1) * kchsize], 
-            (key->size-c_index)*kchsize);
+        op.type = DELETE; op.index = 0; op.auxindex = c_index;
+        _do(key, &op);
 
         _corrections(t, t->root, key, 0, c_depth-1, cbk, cbk_arg);
 
-        key->size += 1;
-        memmove(&key->s[(c_index+1) * kchsize], &key->s[(c_index)*kchsize], 
-            (key->size-c_index)*key->char_size);
-        KEY_CHAR_WRITE(key, c_index, ch);
+        _undo(key, &op);
     }
 
     // transposition (prefix + suffix[1] + suffix[0] + suffix[2:])
     if (c_index < ksize-1) 
     {
-        KEY_CHAR_READ(key, c_index, &ch);
-        KEY_CHAR_READ(key, c_index+1, &ch1);
-        KEY_CHAR_WRITE(key, c_index, ch1);
-        KEY_CHAR_WRITE(key, c_index+1, ch);
+        op.type = TRANSPOSE; op.index = c_index;
+        _do(key, &op);
 
         _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
 
-        KEY_CHAR_READ(key, c_index, &ch);
-        KEY_CHAR_READ(key, c_index+1, &ch1);
-        KEY_CHAR_WRITE(key, c_index, ch1);
-        KEY_CHAR_WRITE(key, c_index+1, ch);
+        _undo(key, &op);
     }
 
     // insertion (prefix + x + suffix[:])
     p = prefix->children;
     while(p)
     {
-        key->size += 1;
-        memmove(&key->s[(c_index+1) * kchsize], &key->s[(c_index)*kchsize], 
-            (key->size-c_index-1)*key->char_size);
-        KEY_CHAR_WRITE(key, c_index, p->key);
+        op.type = INSERT; op.index = c_index; op.ich = p->key;
+        _do(key, &op);
 
         _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
 
-        key->size -= 1;
-        memmove(&key->s[(c_index)*kchsize], &key->s[(c_index+1) * kchsize], 
-            (key->size-c_index)*kchsize);
+        _undo(key, &op);
 
         p = p->next;
     }
 
-    // alteration (prefix + x + suffix[1:])    
+    // alteration (prefix + x + suffix[1:])
     p = prefix->children;
     while(p) 
     {
-        KEY_CHAR_READ(key, c_index, &ch);
-        KEY_CHAR_WRITE(key, c_index, p->key);
+        op.type = CHANGE; op.index = c_index; op.ich = p->key;
+        _do(key, &op);
 
         _corrections(t, pprefix, key, c_index, c_depth-1, cbk, cbk_arg);
-        
-        KEY_CHAR_WRITE(key, c_index, ch);
+
+        _undo(key, &op);
 
         p = p->next;
     }

@@ -115,7 +115,7 @@ class TestBasic(unittest.TestCase):
 
         return tr
     
-    """
+    
     def test_corrections(self):
         MAX_EDIT_DISTANCE = 4
 
@@ -137,13 +137,13 @@ class TestBasic(unittest.TestCase):
             for i in range(1, 4):
                 crs = tr.corrections(x, i)
                 for e in crs:
-                    self.assertTrue(damerau_levenshtein_fast(x, e) <= i)
+                    self.assertTrue(damerau_levenshtein(x, e) <= i)
 
     def test_corrections_unicode(self):
         tr = self._create_trie2()
         corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
         #_print_keys_as_hex(corrections)
-    """
+    
 
     def test_prefixes(self):
         tr = self._create_trie()

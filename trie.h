@@ -70,8 +70,10 @@ typedef enum iter_fail_e {
 // iterator related structs
 typedef struct iter_op_s {
     iter_op_type_t type;
-    char dch; // the deleted char in delete/transpose ops
+    TRIE_CHAR dch; // the deleted char in delete/change ops
+    TRIE_CHAR ich; // the deleted char in delete/change ops
     unsigned long index;
+    unsigned long auxindex;
     unsigned long depth;
 } iter_op_t;
 
