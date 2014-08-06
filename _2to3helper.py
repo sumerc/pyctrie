@@ -2,6 +2,9 @@ import sys
 
 _is_py3k = (sys.version_info >= (3, 0))
 
+if _is_py3k:
+    xrange = range
+
 def is_str(s):
     if _is_py3k:
         if not isinstance(s, str):
@@ -20,4 +23,3 @@ def uni(s):
     
 def is_py3k():
     return _is_py3k
-    

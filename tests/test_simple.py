@@ -3,44 +3,71 @@ import triez
 import _triez
 import unittest
 import multiprocessing # added to fix http://bugs.python.org/issue15881 for Py2.6
+from _2to3helper import *
 
 _SAVE_PROFILE_RESULTS = True
 
 #import faulthandler; faulthandler.enable()
 
-_is_py3k = (sys.version_info >= (3, 0))
-if _is_py3k:
-    _range = range
-else:
-    _range = xrange
-
+# Taken from https://gist.github.com/badocelot/5327427.
+# This version calculates the True DL distance(means adjacent transpositions are
+# possible. See: http://en.wikipedia.org/wiki/Damerau%E2%80%93Levenshtein_distance)
 def damerau_levenshtein(a, b):
-    if not a: return len(b)
-    if not b: return len(a)
-    return min(damerau_levenshtein(a[1:], b[1:])+(a[0] != b[0]), 
-        damerau_levenshtein(a[1:], b)+1, damerau_levenshtein(a, b[1:])+1)
-
-def damerau_levenshtein_fast(a, b):
-    """
-    From: http://mwh.geek.nz/2009/04/26/python-damerau-levenshtein-distance/
-
-    This implementation is O(N*M) time and O(M) space, for N and M the
-    lengths of the two sequences.
-    """
-    oneago = None
-    thisrow = list(range(1, len(b) + 1)) + [0]
-    for x in _range(len(a)):
-        twoago, oneago, thisrow = oneago, thisrow, [0] * len(b) + [x + 1]
-        for y in _range(len(b)):
-            delcost = oneago[y] + 1
-            addcost = thisrow[y - 1] + 1
-            subcost = oneago[y - 1] + (a[x] != b[y])
-            thisrow[y] = min(delcost, addcost, subcost)
-            # This block deals with transpositions
-            if (x > 0 and y > 0 and a[x] == b[y - 1]
-                and a[x-1] == b[y] and a[x] != b[y]):
-                thisrow[y] = min(thisrow[y], twoago[y - 2] + 1)
-    return thisrow[len(b) - 1]
+    # "Infinity" -- greater than maximum possible edit distance
+    # Used to prevent transpositions for first characters
+    INF = len(a) + len(b)
+ 
+    # Matrix: (M + 2) x (N + 2)
+    matrix  = [[INF for n in xrange(len(b) + 2)]]
+    matrix += [[INF] + list(range(len(b) + 1))]
+    matrix += [[INF, m] + [0] * len(b) for m in xrange(1, len(a) + 1)]
+ 
+    # Holds last row each element was encountered: DA in the Wikipedia pseudocode
+    last_row = {}
+ 
+    # Fill in costs
+    for row in xrange(1, len(a) + 1):
+        # Current character in a
+        ch_a = a[row-1]
+ 
+        # Column of last match on this row: DB in pseudocode
+        last_match_col = 0
+ 
+        for col in xrange(1, len(b) + 1):
+            # Current character in b
+            ch_b = b[col-1]
+ 
+            # Last row with matching character
+            last_matching_row = last_row.get(ch_b, 0)
+ 
+            # Cost of substitution
+            cost = 0 if ch_a == ch_b else 1
+ 
+            # Compute substring distance
+            matrix[row+1][col+1] = min(
+                matrix[row][col] + cost, # Substitution
+                matrix[row+1][col] + 1,  # Addition
+                matrix[row][col+1] + 1,  # Deletion
+ 
+                # Transposition
+                # Start by reverting to cost before transposition
+                matrix[last_matching_row][last_match_col]
+                    # Cost of letters between transposed letters
+                    # 1 addition + 1 deletion = 1 substitution
+                    + max((row - last_matching_row - 1),
+                          (col - last_match_col - 1))
+                    # Cost of the transposition itself
+                    + 1)
+ 
+            # If there was a match, update last_match_col
+            if cost == 0:
+                last_match_col = col
+ 
+        # Update last row for current character
+        last_row[ch_a] = row
+ 
+    # Return last element
+    return matrix[-1][-1]
 
 def _print_keys_as_hex(keys):
     for k in keys:
@@ -87,35 +114,8 @@ class TestBasic(unittest.TestCase):
         tr[u"\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}"] = 1
 
         return tr
-    """
-    def test_temp(self):
-        tr = triez.Trie()
-        
-        #tr[u""] = 2
-        tr[u"A"] = 1
-        tr[u"to"] = 1
-        tr[u"tea"] = 1
-        tr[u"ted"] = 1
-        tr[u"ten"] = 1
-        tr[u"i"] = 1
-        tr[u"in"] = 1
-        tr[u"inn"] = 1
-        #tr[u"\N{LINEAR B SYLLABLE B008 A}"] = 1
-        #tr[u"\N{ARABIC LETTER ALEF}"] = 1
-        #tr[u"\N{LINEAR B SYLLABLE B038 E}"] = 1 # UCS4 in PEP393
-        #tr[u"\N{GOTHIC LETTER AHSA}"] = 1 # UCS4 in PEP393
-        
-        suffixes = tr.suffixes(u"")
-        print(list(suffixes))
-        print(list(suffixes))
-        for x in suffixes:
-            if x == u"in":
-                break
-        print(list(suffixes))
-        for x in tr:
-            print(x)
-    """
     
+    """
     def test_corrections(self):
         MAX_EDIT_DISTANCE = 4
 
@@ -130,10 +130,7 @@ class TestBasic(unittest.TestCase):
 
         corrections = tr.corrections(u"i", 1)
         self.assertEqual(corrections, set([u'i', u'A', u'in']))
-        #for x in corrections:
-        #    print("%s:%d" % (x, damerau_levenshtein(u"i", x)))
-        #print(corrections)
-
+        
         # for all trie's elements check correction(x, depth) is generating correct
         # DL distance. depth should be 0 < x < 4.
         for x in tr.suffixes():
@@ -146,7 +143,8 @@ class TestBasic(unittest.TestCase):
         tr = self._create_trie2()
         corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
         #_print_keys_as_hex(corrections)
-        
+    """
+    
     def test_prefixes(self):
         tr = self._create_trie()
 
@@ -229,7 +227,6 @@ class TestBasic(unittest.TestCase):
         self.assertTrue(set([u"\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}", 
             u"\N{ARABIC LETTER ALEF}"]) == prefixes)
 
-    
     def test_basic(self):
         self.assertEqual(triez.Trie().node_count(), 1)
 

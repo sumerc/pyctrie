@@ -27,14 +27,8 @@ void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 
 void KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
 {
-    // TODO: Put assert back, we temporarily put this for testing corrections()
-    // quickly. 
-    //assert(index < k->alloc_size);
+    assert(index < k->size);
     assert(k->char_size <= sizeof(TRIE_CHAR));
-
-    if (index >= k->size) {
-        return;
-    }
 
     // TODO: Below code assumes short is 2 bytes and long is 4 bytes.
     // That might not be true. Think about a better solution.
@@ -232,7 +226,6 @@ trie_node_t *_trie_prefix(trie_node_t *t, trie_key_t *key)
     if (!t){
         return NULL;
     }
-
     i = 0;
     parent = t;
     curr = t->children;
