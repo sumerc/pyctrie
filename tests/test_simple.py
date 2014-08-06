@@ -3,7 +3,7 @@ import triez
 import _triez
 import unittest
 import multiprocessing # added to fix http://bugs.python.org/issue15881 for Py2.6
-from _2to3helper import *
+from triez_helper import *
 
 _SAVE_PROFILE_RESULTS = True
 
@@ -144,7 +144,7 @@ class TestBasic(unittest.TestCase):
         corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
         #_print_keys_as_hex(corrections)
     """
-    
+
     def test_prefixes(self):
         tr = self._create_trie()
 
