@@ -141,7 +141,32 @@ class TestBasic(unittest.TestCase):
                     self.assertTrue(damerau_levenshtein(x, e) <= i)
 
     def test_corrections_with_dataset(self):
-        pass
+
+        # fill trie
+        tr = triez.Trie()
+        
+        with open("tests/out_keys_8859_9", "r") as f:
+            for line in f:
+                line = line[:-1] # strip \n
+                if not is_py3k():
+                    line = unicode(line, "iso-8859-9") 
+                tr[line] = 2
+        self.assertEqual(len(tr), 82489)
+        self.assertEqual(tr.node_count(), 310764)
+        self.assertEqual(tr[u"ramazan"], 2)
+        self.assertEqual(len(tr.corrections(u"ra", 3)), 5639)
+
+
+        # for a random trie element: check correction(x, depth) is generating correct
+        # DL distance. distance shall be 0 < x < 4.
+        import random
+        MAX_EDIT_DISTANCE = 4
+        items = tr.suffixes()
+        item = items.pop()
+        for i in range(1, MAX_EDIT_DISTANCE):
+            crs = tr.corrections(item, i)
+            for e in crs:
+                self.assertTrue(damerau_levenshtein(item, e) <= i)
 
     def test_corrections_unicode(self):
         tr = self._create_trie2()
