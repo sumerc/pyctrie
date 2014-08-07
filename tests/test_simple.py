@@ -122,10 +122,9 @@ class TestBasic(unittest.TestCase):
         tr = self._create_trie()
         corrections = tr.corrections()
         self.assertEqual(len(corrections), len(tr))
-        corrections = tr.corrections(u"", 0)
-        
+        self.assertEqual(tr.corrections(u"i", -2), 
+            tr.corrections(u"i", 0), tr.corrections(u"i"))
 
-        #tr[u"\N{LINEAR B SYLLABLE B038 E}"] = 1
         corrections = tr.corrections(u"i", 2)
         self.assertEqual(corrections, set([u'i', u'to', u'inn', 
             u'A', u'in']))
@@ -141,11 +140,13 @@ class TestBasic(unittest.TestCase):
                 for e in crs:
                     self.assertTrue(damerau_levenshtein(x, e) <= i)
 
+    def test_corrections_with_dataset(self):
+        pass
+
     def test_corrections_unicode(self):
         tr = self._create_trie2()
         corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
         #_print_keys_as_hex(corrections)
-    
 
     def test_prefixes(self):
         tr = self._create_trie()
