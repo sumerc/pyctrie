@@ -59,11 +59,11 @@ void _printTKEY(trie_key_t k)
     printf("key->s:%s, key->size:%d, key->char_size:%d\r\n", k.s, k.size, k.char_size);
     for(i=0;i<k.size;i++) {
         if (k.char_size == 1) {
-            printf("char[%u]:0x%hhxuh\r\n", i, *(char *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%hhxuh\r\n", i, *(uint8_t *)&k.s[i*k.char_size]);
         } else if (k.char_size == 2) {
-            printf("char[%u]:0x%hxh\n", i, *(short *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%hxh\n", i, *(uint16_t *)&k.s[i*k.char_size]);
         } else if (k.char_size == 4) {
-            printf("char[%u]:0x%xh\r\n", i, *(long *)&k.s[i*k.char_size]);
+            printf("char[%u]:0x%xh\r\n", i, *(uint32_t *)&k.s[i*k.char_size]);
         }
     }
 }

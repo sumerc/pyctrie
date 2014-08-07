@@ -122,6 +122,8 @@ class TestBasic(unittest.TestCase):
         tr = self._create_trie()
         corrections = tr.corrections()
         self.assertEqual(len(corrections), len(tr))
+        corrections = tr.corrections(u"", 0)
+        
 
         #tr[u"\N{LINEAR B SYLLABLE B038 E}"] = 1
         corrections = tr.corrections(u"i", 2)
