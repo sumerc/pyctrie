@@ -120,10 +120,6 @@ class TestBasic(unittest.TestCase):
 
         return tr
 
-    def test_iter_corrections(self):
-        tr = self._create_trie()
-        self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
-        
     def test_corrections(self):
         MAX_EDIT_DISTANCE = 4
 
@@ -132,6 +128,7 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(len(corrections), len(tr))
         self.assertEqual(tr.corrections(u"i", -2), 
             tr.corrections(u"i", 0), tr.corrections(u"i"))
+        self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
 
         corrections = tr.corrections(u"i", 2)
         self.assertEqual(corrections, set([u'i', u'to', u'inn', 
@@ -159,6 +156,9 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(tr.node_count(), 310764)
         self.assertEqual(tr[u"ramazan"], 2)
         self.assertEqual(len(tr.corrections(u"ra", 3)), 5639)
+        self.assertEqual(len(set(list(tr.iter_corrections(u"ra", 3)))), 5639)
+        self.assertEqual(set(list((tr.iter_corrections(u"abe", 3)))), 
+            tr.corrections(u"abe", 3))
 
         # for a random trie element: check correction(x, depth) is generating correct
         # DL distance. distance shall be 0 < x < 4.
