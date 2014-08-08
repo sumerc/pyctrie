@@ -2,6 +2,7 @@ import sys
 import triez
 import _triez
 import unittest
+import codecs
 import multiprocessing # added to fix http://bugs.python.org/issue15881 for Py2.6
 from triez_helper import *
 
@@ -78,6 +79,10 @@ def _print_keys_as_hex(keys):
             sys.stdout.write(" " * (HEX_COLUMN_SIZE-len(fs)))
         sys.stdout.write("\n")
 
+def _read_lines(path, encoding):
+    with codecs.open(path, encoding=encoding) as f:
+        return f.read().splitlines()
+        
 class TestBasic(unittest.TestCase):
 
     # create a trie just like in http://en.wikipedia.org/wiki/Trie
@@ -114,8 +119,7 @@ class TestBasic(unittest.TestCase):
         tr[u"\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}"] = 1
 
         return tr
-    
-    
+        
     def test_corrections(self):
         MAX_EDIT_DISTANCE = 4
 
@@ -133,29 +137,24 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(corrections, set([u'i', u'A', u'in']))
         
         # for all trie's elements check correction(x, depth) is generating correct
-        # DL distance. depth should be 0 < x < 4.
-        for x in tr.suffixes():
+        # DL distance. depth should be 1 < x < 4.
+        for x in tr.iter_suffixes():
             for i in range(1, 4):
                 crs = tr.corrections(x, i)
                 for e in crs:
                     self.assertTrue(damerau_levenshtein(x, e) <= i)
-
+    
     def test_corrections_with_dataset(self):
-
-        # fill trie
         tr = triez.Trie()
-        
-        with open("tests/out_keys_8859_9", "r") as f:
-            for line in f:
-                line = line[:-1] # strip \n
-                if not is_py3k():
-                    line = unicode(line, "iso-8859-9") 
-                tr[line] = 2
+
+        lines = _read_lines(path="tests/out_keys_8859_9", encoding="iso-8859-9")
+        for line in lines:
+            tr[line] = 2
+
         self.assertEqual(len(tr), 82489)
         self.assertEqual(tr.node_count(), 310764)
         self.assertEqual(tr[u"ramazan"], 2)
         self.assertEqual(len(tr.corrections(u"ra", 3)), 5639)
-
 
         # for a random trie element: check correction(x, depth) is generating correct
         # DL distance. distance shall be 0 < x < 4.
@@ -170,10 +169,14 @@ class TestBasic(unittest.TestCase):
 
     def test_corrections_unicode(self):
         tr = self._create_trie2()
-        corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}", 2)
+        corrections = tr.corrections(u"\N{ARABIC LETTER ALEF}")
         #_print_keys_as_hex(corrections)
+        self.assertEqual(len(corrections), len(tr))
+
+        # TODO: More...
 
     def test_prefixes(self):
+
         tr = self._create_trie()
 
         self.assertEqual(len(tr.prefixes(u"inn", 1)), 1)
@@ -196,6 +199,7 @@ class TestBasic(unittest.TestCase):
             len(list(tr.iter_prefixes(u"inn"))), 3)
 
     def test_suffixes(self):
+
         # del suffixes after referencing
         tr = self._create_trie()
         suffixes = tr.iter_suffixes(u"in")
@@ -232,6 +236,7 @@ class TestBasic(unittest.TestCase):
             len(tr))
       
     def test_suffixes_unicode(self):
+
         tr = self._create_trie2()
         suffixes = tr.suffixes(u"\N{ARABIC LETTER ALEF}")
         self.assertEqual(len(suffixes), 6)
@@ -244,6 +249,7 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(len(suffixes), 5)
 
     def test_prefixes_unicode(self):
+
         tr = self._create_trie2()
         prefixes = tr.prefixes(u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A")
         self.assertEqual(len(prefixes), 3)
@@ -290,6 +296,7 @@ class TestBasic(unittest.TestCase):
             raise Exception("KeyError should be raised here.")
         except KeyError:
             pass
+
         try:
             tr[5] = 54
             raise Exception("Triez.Error should be raised here.")
@@ -299,8 +306,9 @@ class TestBasic(unittest.TestCase):
         del tr
         tr = self._create_trie()
         self.assertEqual(tr.node_count(), 11)
-        
+       
     def test_refcount(self):
+
         _GRC = sys.getrefcount
         class A:
             _a_destructor_called = False
@@ -327,7 +335,6 @@ class TestBasic(unittest.TestCase):
         for x in suffixes: pass
         sfx2 = tr.iter_suffixes(u"")
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
-    
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)
