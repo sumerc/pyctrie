@@ -28,11 +28,11 @@
 #define TRIE_DATA uintptr_t
 
 #if defined(MS_WINDOWS)
-#define _WINDOWS
+#define __WINDOWS
 #elif (defined(__MACH__) && defined(__APPLE__))
-#define _MACH
+#define __MACH
 #else /* *nix */
-#define _UNIX
+#define __UNIX
 #endif
 
 #ifdef _MSC_VER 
