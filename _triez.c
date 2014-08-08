@@ -488,7 +488,15 @@ static PyObject *Trie_corrections(PyObject* selfobj, PyObject *args)
 
 static PyObject *Trie_itercorrections(PyObject* selfobj, PyObject *args)
 {
-    return NULL;
+    trie_key_t k;
+    unsigned long max_depth;
+
+    if (!_parse_traverse_args((TrieObject *)selfobj, args, &k, &max_depth)) {
+        return NULL;
+    }
+
+    return _create_iterator((TrieObject *)selfobj, &k, max_depth, itercorrections_init, 
+        itercorrections_next, itercorrections_reset, itercorrections_deinit);
 }
 
 // Iterate keys start from root, depth is trie's height.

@@ -475,10 +475,10 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
 }
 
 iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth, 
-    unsigned long alloc_size)
+    unsigned long alloc_size, unsigned long stack_size1, unsigned long stack_size2)
 {
     iter_t *r;
-    iter_stack_t *k;
+    iter_stack_t *k0,*k1;
     trie_key_t *kp;
 
     // alloc a key that can hold size + max_depth chars.
@@ -490,10 +490,16 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
     KEYCPY(kp, key, 0, 0, key->size);
     kp->size = key->size;
 
-    // allocate stack and push the first iter_pos
-    k = STACKCREATE(max_depth);
-    if (!k) {
+    // allocate stacks
+    k0 = STACKCREATE(stack_size1);
+    if (!k0) {
         KEYFREE(kp);
+        return NULL;
+    }
+    k1 = STACKCREATE(stack_size1);
+    if (!k1) {
+        KEYFREE(kp);
+        STACKFREE(k0);
         return NULL;
     }
 
@@ -501,19 +507,24 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
     r = (iter_t *)malloc(sizeof(iter_t));
     if (!r) {
         KEYFREE(kp);
-        STACKFREE(k);
+        STACKFREE(k0);
+        STACKFREE(k1);
         return NULL;
     }
+
     r->first = 1;
     r->last = 0;
     r->fail = 0;
     r->fail_reason = UNDEFINED;
     r->key = kp;
-    r->stack0 = k;
+    r->stack0 = k0;
+    r->stack1 = k1;
     r->max_depth = max_depth;
     r->trie = t;
     t->dirty = 0; // reset dirty flag just before iteration
-
+    r->keylen_reached = 0;
+    r->depth_reached = 0;
+    
     return r;
 }
 
@@ -521,6 +532,7 @@ void ITERATOR_FREE(iter_t *iter)
 {
     KEYFREE(iter->key);
     STACKFREE(iter->stack0);
+    STACKFREE(iter->stack1);
     TRIE_FREE(iter);
 }
 
@@ -536,7 +548,8 @@ iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     }
 
     // create the iterator obj
-    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth));
+    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth), 
+        max_depth, 0);
     if (!iter) {
         return NULL;
     }
@@ -645,7 +658,6 @@ iter_t *itersuffixes_reset(iter_t *iter)
     ipos.op.index = iter->key->size-1;
     PUSHI(iter->stack0, &ipos);
 
-    // set flags
     iter->first = 1;
     iter->last = 0;
     iter->fail = 0;
@@ -683,7 +695,7 @@ iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     key->size = real_size;
 
     // create the iterator obj
-    iter = ITERATOR_CREATE(t, key, max_depth, key->size);
+    iter = ITERATOR_CREATE(t, key, max_depth, key->size, max_depth, 0);
     if (!iter) {
         return NULL;
     }
@@ -805,11 +817,6 @@ void _do(trie_key_t *key, iter_op_t *op)
     ki = op->index;
     kchsize = key->char_size;
 
-    if (ki > key->size)
-    {
-        return;
-    }
-
     switch(op->type)
     {
     case DELETE:
@@ -839,6 +846,8 @@ void _do(trie_key_t *key, iter_op_t *op)
         KEY_CHAR_READ(key, ki, &op->dch);
         KEY_CHAR_WRITE(key, ki, op->ich);
         break;
+    case INDEXCHG:
+        break; // do nothing
     default:
         assert(0 == 1); // unsupported operation
         break;
@@ -882,6 +891,8 @@ void _undo(trie_key_t *key, iter_op_t *op)
         _DPRINT("UNDO CHANGE\n");
         KEY_CHAR_WRITE(key, ki, op->dch);
         break;
+    case INDEXCHG:
+        break; // do nothing
     default:
         assert(0 == 1); // unsupported operation
         break;
@@ -1002,20 +1013,217 @@ void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
 
 iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
-    return NULL;
-}
+    iter_t *iter;
 
-iter_t *itercorrections_next(iter_t *iter)
-{
-    return NULL;
-}
+    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth), max_depth+1,
+        max_depth);
+    if (!iter) {
+        return NULL;
+    }
+    itercorrections_reset(iter);
 
-iter_t *itercorrections_reset(iter_t *iter)
-{
-    return NULL;
+    return iter;
 }
 
 void itercorrections_deinit(iter_t *iter)
 {
-    return;
+    ITERATOR_FREE(iter);
+}
+
+iter_t *itercorrections_reset(iter_t *iter)
+{
+    iter_pos_t ipos;
+
+    // clear stacks
+    while(POPI(iter->stack0))
+        ;
+    while(POPI(iter->stack1))
+        ;
+
+    // alloc the first iter_pos
+    ipos.pos = 0; ipos.op.type = INDEXCHG; ipos.op.index = 0; 
+    ipos.op.depth = iter->max_depth; ipos.iptr = NULL;
+    ipos.prefix = iter->trie->root;
+
+    PUSHI(iter->stack0, &ipos);
+    PUSHI(iter->stack1, &ipos);
+
+    iter->first = 1;
+    iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
+    iter->keylen_reached = 0;
+    iter->depth_reached = 0;
+
+    return iter;
+}
+
+iter_t *itercorrections_next(iter_t *iter)
+{
+    trie_key_t pk;
+    iter_pos_t *ip;
+    iter_stack_t *k0,*k1;
+    trie_node_t *prefix,*p;
+    iter_pos_t ipos;
+    int found;
+    TRIE_CHAR ch;
+
+    k0 = (iter_stack_t *)iter->stack0;
+    k1 = (iter_stack_t *)iter->stack1;
+    found = 0;
+    while(1)
+    {
+        if (found)
+        {
+            return iter;
+        }
+
+        ip = PEEKI(k0);
+        if (!ip) {
+            iter->last = 1;
+            return iter;
+        }
+
+        // previous key changes are delayed to this iteration.
+        if (iter->depth_reached)
+        {
+            _undo(iter->key, &ip->op);
+            POPI(k0);
+            iter->depth_reached = 0;
+            continue;
+        }
+
+        if (iter->keylen_reached)
+        {
+            ip = POPI(k1);
+            _undo(iter->key, &ip->op);
+            ip = POPI(k0);
+            _undo(iter->key, &ip->op);
+            iter->keylen_reached = 0; 
+            continue;
+        }
+
+        prefix = ip->prefix;
+        if (ip->op.index > 0) {
+            if (ip->op.index-1 >= iter->key->size) {
+                ip = POPI(k1);
+                _undo(iter->key, &ip->op);
+                ip = POPI(k0);
+                _undo(iter->key, &ip->op);
+                continue;
+            }
+            KEY_CHAR_READ(iter->key, ip->op.index-1, &ch);
+            pk.s = (char *)&ch; pk.size = 1; pk.char_size = iter->key->char_size;
+            prefix = _trie_prefix(ip->prefix, &pk);
+            if (!prefix) {
+                ip = POPI(k1);
+                _undo(iter->key, &ip->op);
+                ip = POPI(k0);
+                _undo(iter->key, &ip->op);
+                continue;
+            }
+        }
+
+        // "only once" operations go under (pos == 0)
+        if (ip->pos == 0)
+        {
+            _do(iter->key, &ip->op); 
+
+            pk.s = &iter->key->s[ip->op.index*iter->key->char_size]; 
+            pk.size = iter->key->size-ip->op.index; 
+            pk.char_size = iter->key->char_size;
+            p = _trie_prefix(prefix, &pk);
+            if (p && p->value) {
+                found = 1;
+            }
+        }
+
+        if (ip->op.depth == 0)
+        {
+            iter->depth_reached = 1;
+            continue;
+        }
+
+        if (ip->op.index > iter->key->size)
+        {
+            iter->keylen_reached = 1;
+            continue;
+        }
+
+        // hold the doed() but not undoed() non-noop operations in history stack
+        // that is processed first time.(in our current implementation we process 
+        // the same op multiple times so simply check if it was processed before.
+        if (ip->op.type != INDEXCHG && ip->pos == 0)
+        {
+            PUSHI(k1, ip);
+        }
+
+        if (ip->pos == 0) {
+            ip->pos = 1;
+            if (iter->key->size > 1 && ip->op.index < iter->key->size) {
+                ipos.pos = 0; ipos.op.type = DELETE; ipos.op.index = 0; 
+                ipos.op.auxindex = ip->op.index; ipos.op.depth = ip->op.depth-1; 
+                ipos.iptr = NULL; ipos.prefix = iter->trie->root;
+                PUSHI(k0, &ipos);
+                continue;
+            }
+        }
+        
+        if (ip->pos == 1) {
+            ip->pos = 2;
+            if (iter->key->size != 0 && ip->op.index+1 < iter->key->size)
+            {
+                ipos.pos = 0; ipos.op.type = TRANSPOSE; ipos.op.index = ip->op.index; 
+                ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; 
+                ipos.prefix = ip->prefix;
+                PUSHI(k0, &ipos);
+                continue;
+            }
+        }
+            
+        if (ip->pos == 2) {
+            if (!ip->iptr) {
+                ip->iptr = prefix->children;
+            } else {
+                ip->iptr = ip->iptr->next;
+            }           
+            
+            if (ip->iptr) {
+                ipos.pos = 0; ipos.op.type = INSERT; ipos.op.index = ip->op.index; 
+                ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; ipos.op.ich = ip->iptr->key;
+                ipos.prefix = ip->prefix;
+                PUSHI(k0, &ipos);
+                continue;
+            } 
+
+            ip->pos = 3;
+        }
+        
+        if (ip->pos == 3) {
+            if (ip->op.index < iter->key->size) 
+            {
+                if (!ip->iptr) {
+                    ip->iptr = prefix->children;
+                } else {
+                    ip->iptr = ip->iptr->next;
+                }            
+                
+                if (ip->iptr) {
+                    ipos.pos = 0; ipos.op.type = CHANGE; ipos.op.index = ip->op.index; 
+                    ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; ipos.op.ich = ip->iptr->key;
+                    ipos.prefix = ip->prefix;
+                    PUSHI(k0, &ipos);
+                    continue;
+                }
+            }
+            ip->pos = 4;
+        }
+
+        POPI(k0);
+        ipos.pos = 0; ipos.op.type = INDEXCHG; ipos.op.index = ip->op.index+1; 
+        ipos.op.depth = ip->op.depth; ipos.iptr = NULL;
+        ipos.prefix = prefix;
+        PUSHI(k0, &ipos);
+    }
 }

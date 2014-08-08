@@ -119,6 +119,10 @@ class TestBasic(unittest.TestCase):
         tr[u"\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}"] = 1
 
         return tr
+
+    def test_iter_corrections(self):
+        tr = self._create_trie()
+        self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
         
     def test_corrections(self):
         MAX_EDIT_DISTANCE = 4
@@ -160,7 +164,7 @@ class TestBasic(unittest.TestCase):
         # DL distance. distance shall be 0 < x < 4.
         import random
         MAX_EDIT_DISTANCE = 4
-        items = tr.suffixes()
+        items = list(tr.iter_suffixes())
         item = items.pop()
         for i in range(1, MAX_EDIT_DISTANCE):
             crs = tr.corrections(item, i)

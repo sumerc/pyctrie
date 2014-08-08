@@ -81,6 +81,7 @@ typedef struct iter_pos_s {
     iter_op_t op;
     unsigned long pos; // used for simulating multiple recursive calls in the same body.
     trie_node_t *iptr; // used for holding the current processing node.
+    trie_node_t *prefix; // hold for not calculating prefix everytime
 } iter_pos_t;
 
 // fast, pre-allocated iter_pos_t stack
