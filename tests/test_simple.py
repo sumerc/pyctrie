@@ -89,14 +89,14 @@ class TestBasic(unittest.TestCase):
     def _create_trie(self):
         u = str
         tr = triez.Trie()
-        tr[u("A")] = 1
-        tr[u("to")] = 1
-        tr[u("tea")] = 1
-        tr[u("ted")] = 1
-        tr[u("ten")] = 1
-        tr[u("i")] = 1
-        tr[u("in")] = 1
-        tr[u("inn")] = 1
+        tr[uni("A")] = 1
+        tr[uni("to")] = 1
+        tr[uni("tea")] = 1
+        tr[uni("ted")] = 1
+        tr[uni("ten")] = 1
+        tr[uni("i")] = 1
+        tr[uni("in")] = 1
+        tr[uni("inn")] = 1
 
         return tr
 
@@ -108,16 +108,16 @@ class TestBasic(unittest.TestCase):
         """
         tr = triez.Trie()
         # utf16,utf32: 0x0627
-        tr[u("\N{ARABIC LETTER ALEF}")] = 1 
-        tr[u("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}")] = 1
+        tr[uni("\N{ARABIC LETTER ALEF}")] = 1 
+        tr[uni("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}")] = 1
 
         # utf16: 0xD800 0xDF30, utf32: 0x00010330
-        tr[u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}")] = 1 
-        tr[u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A")] = 1
+        tr[uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}")] = 1 
+        tr[uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A")] = 1
 
         # utf16: 0xD800 0xDC01, utf32: 0x00010001
-        tr[u("\N{ARABIC LETTER ALEF}\N{LINEAR B SYLLABLE B038 E}")] = 1
-        tr[u("\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}")] = 1
+        tr[uni("\N{ARABIC LETTER ALEF}\N{LINEAR B SYLLABLE B038 E}")] = 1
+        tr[uni("\N{ARABIC LETTER ALEF}ABC\N{GOTHIC LETTER AHSA}")] = 1
 
         return tr
 
@@ -130,15 +130,15 @@ class TestBasic(unittest.TestCase):
 
         self.assertEqual(len(corrections), len(tr))
 
-        self.assertEqual(tr.corrections(u("i"), -2), 
-            tr.corrections(u("i"), 0), tr.corrections(u("i")))
+        self.assertEqual(tr.corrections(uni("i"), -2), 
+            tr.corrections(uni("i"), 0), tr.corrections(uni("i")))
 
         self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
-        corrections = tr.corrections(u("i"), 2)
-        self.assertEqual(corrections, set([u('i'), u('to'), u('inn'), 
-            u('A'), u('in')]))        
-        corrections = tr.corrections(u("i"), 1)
-        self.assertEqual(corrections, set([u('i'), u('A'), u('in')]))
+        corrections = tr.corrections(uni("i"), 2)
+        self.assertEqual(corrections, set([uni('i'), uni('to'), uni('inn'), 
+            uni('A'), uni('in')]))        
+        corrections = tr.corrections(uni("i"), 1)
+        self.assertEqual(corrections, set([uni('i'), uni('A'), uni('in')]))
         
         # for all trie's elements check correction(x, depth) is generating correct
         # DL distance. depth should be 1 < x < 4.
@@ -157,11 +157,11 @@ class TestBasic(unittest.TestCase):
 
         self.assertEqual(len(tr), 82489)
         self.assertEqual(tr.node_count(), 310764)
-        self.assertEqual(tr[u("ramazan")], 2)
-        self.assertEqual(len(tr.corrections(u("ra"), 3)), 5639)
-        self.assertEqual(len(set(list(tr.iter_corrections(u("ra"), 3)))), 5639)
-        self.assertEqual(set(list((tr.iter_corrections(u("abe"), 3)))), 
-            tr.corrections(u("abe"), 3))
+        self.assertEqual(tr[uni("ramazan")], 2)
+        self.assertEqual(len(tr.corrections(uni("ra"), 3)), 5639)
+        self.assertEqual(len(set(list(tr.iter_corrections(uni("ra"), 3)))), 5639)
+        self.assertEqual(set(list((tr.iter_corrections(uni("abe"), 3)))), 
+            tr.corrections(uni("abe"), 3))
 
         # for a random trie element: check correction(x, depth) is generating correct
         # DL distance. distance shall be 0 < x < 4.
@@ -176,7 +176,7 @@ class TestBasic(unittest.TestCase):
 
     def test_corrections_unicode(self):
         tr = self._create_trie2()
-        corrections = tr.corrections(u("\N{ARABIC LETTER ALEF}"))
+        corrections = tr.corrections(uni("\N{ARABIC LETTER ALEF}"))
         #_print_keys_as_hex(corrections)
         self.assertEqual(len(corrections), len(tr))
 
@@ -186,38 +186,38 @@ class TestBasic(unittest.TestCase):
 
         tr = self._create_trie()
 
-        self.assertEqual(len(tr.prefixes(u("inn"), 1)), 1)
-        self.assertEqual(len(tr.prefixes(u("inn"))), 3)
-        self.assertTrue(u("i") in tr.prefixes(u("inn")))
-        self.assertTrue(u("in") in tr.prefixes(u("inn")))
-        self.assertTrue(u("inn") in tr.prefixes(u("inn")))
+        self.assertEqual(len(tr.prefixes(uni("inn"), 1)), 1)
+        self.assertEqual(len(tr.prefixes(uni("inn"))), 3)
+        self.assertTrue(uni("i") in tr.prefixes(uni("inn")))
+        self.assertTrue(uni("in") in tr.prefixes(uni("inn")))
+        self.assertTrue(uni("inn") in tr.prefixes(uni("inn")))
         prefixes = tr.iter_prefixes()
         self.assertEqual(len(list(prefixes)), 0)
         
-        iprefixes = list(tr.iter_prefixes(u("inn")))
-        prefixes = tr.prefixes(u("inn"))
+        iprefixes = list(tr.iter_prefixes(uni("inn")))
+        prefixes = tr.prefixes(uni("inn"))
         self.assertTrue(prefixes, set(iprefixes))
   
-        iprefixes = tr.iter_prefixes(u("inn"))
-        del tr[u("in")]
+        iprefixes = tr.iter_prefixes(uni("inn"))
+        del tr[uni("in")]
         self.assertRaises(RuntimeError, list, iprefixes)
 
-        self.assertEqual(len(tr.prefixes(u("inn"))), 
-            len(list(tr.iter_prefixes(u("inn")))), 3)
+        self.assertEqual(len(tr.prefixes(uni("inn"))), 
+            len(list(tr.iter_prefixes(uni("inn")))), 3)
 
     def test_suffixes(self):
 
         # del suffixes after referencing
         tr = self._create_trie()
-        suffixes = tr.iter_suffixes(u("in"))
-        del tr[u("in")]
-        del tr[u("inn")]
+        suffixes = tr.iter_suffixes(uni("in"))
+        del tr[uni("in")]
+        del tr[uni("inn")]
         self.assertRaises(RuntimeError, list, suffixes)
         self.assertRaises(RuntimeError, list, suffixes)
 
         tr = self._create_trie()
-        suffixes = tr.iter_suffixes(u("i"))
-        del tr[u("in")]
+        suffixes = tr.iter_suffixes(uni("i"))
+        del tr[uni("in")]
         self.assertRaises(RuntimeError, list, suffixes)
 
         # trie self_iter and suffixes should be same
@@ -226,7 +226,7 @@ class TestBasic(unittest.TestCase):
 
         # break iteration in the middle and test if it resets again
         for x in suffixes:
-            if x == u("in"):
+            if x == uni("in"):
                 break
         self.assertEqual(len(list(tr)), len(list(suffixes)))
         
@@ -237,7 +237,7 @@ class TestBasic(unittest.TestCase):
         
         # non-existent suffix iter
         tr = self._create_trie()
-        self.assertEqual(len(list(tr.iter_suffixes(u("INVALID")))), 0)
+        self.assertEqual(len(list(tr.iter_suffixes(uni("INVALID")))), 0)
         self.assertEqual(len(tr.suffixes()), len(list(tr.iter_suffixes())))
         self.assertEqual(len(tr.suffixes()), len(list(tr.iter_suffixes())), 
             len(tr))
@@ -245,27 +245,27 @@ class TestBasic(unittest.TestCase):
     def test_suffixes_unicode(self):
 
         tr = self._create_trie2()
-        suffixes = tr.suffixes(u("\N{ARABIC LETTER ALEF}"))
+        suffixes = tr.suffixes(uni("\N{ARABIC LETTER ALEF}"))
         self.assertEqual(len(suffixes), 6)
-        suffixes = tr.suffixes(u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"))
-        self.assertTrue(set([u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"), 
-            u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}")]) == suffixes)
+        suffixes = tr.suffixes(uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"))
+        self.assertTrue(set([uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"), 
+            uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}")]) == suffixes)
 
-        suffixes = tr.suffixes(u("\N{ARABIC LETTER ALEF}"), 3)
+        suffixes = tr.suffixes(uni("\N{ARABIC LETTER ALEF}"), 3)
         #_print_keys_as_hex(suffixes)
         self.assertEqual(len(suffixes), 5)
 
     def test_prefixes_unicode(self):
         tr = self._create_trie2()
-        prefixes = tr.prefixes(u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"))
+        prefixes = tr.prefixes(uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"))
         self.assertEqual(len(prefixes), 3)
-        self.assertTrue(set([u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"), 
-            u("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"), 
-            u("\N{ARABIC LETTER ALEF}")]) == prefixes)
-        prefixes = tr.prefixes(u("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}"))
+        self.assertTrue(set([uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A"), 
+            uni("\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}"), 
+            uni("\N{ARABIC LETTER ALEF}")]) == prefixes)
+        prefixes = tr.prefixes(uni("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}"))
         self.assertEqual(len(prefixes), 2)
-        self.assertTrue(set([u("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}"), 
-            u("\N{ARABIC LETTER ALEF}")]) == prefixes)
+        self.assertTrue(set([uni("\N{ARABIC LETTER ALEF}\N{ARABIC LETTER ALEF}"), 
+            uni("\N{ARABIC LETTER ALEF}")]) == prefixes)
 
     def test_basic(self):
         self.assertEqual(triez.Trie().node_count(), 1)
@@ -273,19 +273,19 @@ class TestBasic(unittest.TestCase):
         tr = triez.Trie()
         del tr
         tr = triez.Trie()
-        tr[u("key")] = 55
+        tr[uni("key")] = 55
         
-        self.assertTrue(u("key") in tr)
+        self.assertTrue(uni("key") in tr)
         
-        self.assertFalse(u("ke") in tr)
+        self.assertFalse(uni("ke") in tr)
         self.assertFalse(5 in tr)
         self.assertEqual(len(tr), 1)
         
         self.assertRaises(_triez.Error, tr.__getitem__, 5)
         
-        ucs1_string = u("testing")
-        ucs2_string = u("testing\N{ARABIC LETTER ALEF}")
-        ucs4_string = u("testing\N{GOTHIC LETTER AHSA}")
+        ucs1_string = uni("testing")
+        ucs2_string = uni("testing\N{ARABIC LETTER ALEF}")
+        ucs4_string = uni("testing\N{GOTHIC LETTER AHSA}")
         
         tr[ucs1_string] = 4 
         tr[ucs2_string] = 5 
@@ -298,7 +298,7 @@ class TestBasic(unittest.TestCase):
         self.assertRaises(KeyError, tr.__getitem__, ucs2_string)
         
         try:
-            del tr[u("tes")]
+            del tr[uni("tes")]
             raise Exception("KeyError should be raised here.")
         except KeyError:
             pass
@@ -325,22 +325,22 @@ class TestBasic(unittest.TestCase):
                 
         tr = triez.Trie()
         a = A()
-        tr[u("mo")] = a
-        self.assertEqual(_GRC(tr[u("mo")]), 2)
+        tr[uni("mo")] = a
+        self.assertEqual(_GRC(tr[uni("mo")]), 2)
         del a
-        self.assertEqual(_GRC(tr[u("mo")]), 1)
-        self.assertTrue(isinstance(tr[u("mo")], A))
-        ae = tr[u("mo")]
+        self.assertEqual(_GRC(tr[uni("mo")]), 1)
+        self.assertTrue(isinstance(tr[uni("mo")], A))
+        ae = tr[uni("mo")]
         del ae
-        self.assertEqual(_GRC(tr[u("mo")]), 1)
-        del tr[u("mo")]
+        self.assertEqual(_GRC(tr[uni("mo")]), 1)
+        del tr[uni("mo")]
         self.assertTrue(A._a_destructor_called)
         
         self.assertEqual(_GRC(tr), 1)
         suffixes = tr.iter_suffixes()
         self.assertEqual(_GRC(tr), 2)
         for x in suffixes: pass
-        sfx2 = tr.iter_suffixes(u(""))
+        sfx2 = tr.iter_suffixes(uni(""))
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
         del suffixes
         self.assertEqual(_GRC(tr), 2)
@@ -352,18 +352,18 @@ class TestBasic(unittest.TestCase):
         del crcs
         del sfx2
         self.assertEqual(_GRC(tr), 1)
-
+        
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)
-        trie2[u("testing")] =  5
+        trie2[uni("testing")] =  5
         
         @yappi.profile()
         def _p3():
             for i in range(OP_COUNT):
-                val = trie2[u("testing")]
+                val = trie2[uni("testing")]
     """
-    
+    """
     def test_profile(self):
         import yappi
         import datetime
@@ -391,16 +391,16 @@ class TestBasic(unittest.TestCase):
         
         # profile search
         trie = _triez.Trie()
-        trie[u("testing")] = 4 # a ucs1 string
+        trie[uni("testing")] = 4 # a ucs1 string
         def _triez_search():
             for i in range(OP_COUNT):
-                val = trie[u("testing")]
+                val = trie[uni("testing")]
                 
         d = {}
-        d[u("test_key")] = "test_val"
+        d[uni("test_key")] = "test_val"
         def _dict_search():
             for i in range(OP_COUNT):
-                val = d[u("test_key")]
+                val = d[uni("test_key")]
                 
         _triez_search()
         _dict_search()
@@ -410,11 +410,11 @@ class TestBasic(unittest.TestCase):
         trie = _triez.Trie()
         def _triez_add():
             for i in range(OP_COUNT):
-                trie[u("testing")] = "test_val"
+                trie[uni("testing")] = "test_val"
         d = {}
         def _dict_add():
             for i in range(OP_COUNT):
-                d[u("testing")] = "test_val"
+                d[uni("testing")] = "test_val"
                 
         _triez_add()
         _dict_add()
@@ -424,14 +424,14 @@ class TestBasic(unittest.TestCase):
         trie = _triez.Trie()
         def _triez_del():
             for i in range(OP_COUNT):
-                trie[u("testing")] = "test_val"
-                del trie[u("testing")]
+                trie[uni("testing")] = "test_val"
+                del trie[uni("testing")]
         d = {}
-        d[u("testing")] = "test_val"
+        d[uni("testing")] = "test_val"
         def _dict_del():
             for i in range(OP_COUNT):
-                d[u("testing")] = "test_val"
-                del d[u("testing")]
+                d[uni("testing")] = "test_val"
+                del d[uni("testing")]
                 
         _triez_del()
         _dict_del()
@@ -448,4 +448,4 @@ class TestBasic(unittest.TestCase):
                 for stat in stats:
                     f.write(stat)
                     f.write('\n')
-    
+    """

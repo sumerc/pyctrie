@@ -14,17 +14,10 @@ def is_str(s):
             return False
     return True
     
-def uni(s):
-    if _is_py3k:
-        s = str(s)
-    else:
-        s = unicode(s)
-    return s
-    
 def is_py3k():
     return _is_py3k
 
-def u(s):
+def uni(s):
     if not _is_py3k:
         return unicode(s)
     return s
