@@ -17,7 +17,7 @@ def is_str(s):
 def is_py3k():
     return _is_py3k
 
-def uni(s):
+def uni_escape(s):
     if not _is_py3k:
-        return unicode(s)
+        return s.decode("unicode-escape")
     return s
