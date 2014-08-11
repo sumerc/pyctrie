@@ -131,10 +131,10 @@ typedef struct {
 
 static void Trieiter_dealloc(TrieIteratorObject *tio)
 {
-    Py_XDECREF(tio->_trieobj);
     if (tio->_iter) {
         tio->iter_deinit_func(tio->_iter);
     }
+    Py_XDECREF(tio->_trieobj);
     PyObject_GC_Del(tio);
 }
 

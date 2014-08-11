@@ -124,16 +124,18 @@ class TestBasic(unittest.TestCase):
         MAX_EDIT_DISTANCE = 4
 
         tr = self._create_trie()
+
         corrections = tr.corrections()
+
         self.assertEqual(len(corrections), len(tr))
+
         self.assertEqual(tr.corrections(u"i", -2), 
             tr.corrections(u"i", 0), tr.corrections(u"i"))
-        self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
 
+        self.assertEqual(set(list(tr.iter_corrections())), tr.corrections())
         corrections = tr.corrections(u"i", 2)
         self.assertEqual(corrections, set([u'i', u'to', u'inn', 
-            u'A', u'in']))
-
+            u'A', u'in']))        
         corrections = tr.corrections(u"i", 1)
         self.assertEqual(corrections, set([u'i', u'A', u'in']))
         
@@ -144,7 +146,7 @@ class TestBasic(unittest.TestCase):
                 crs = tr.corrections(x, i)
                 for e in crs:
                     self.assertTrue(damerau_levenshtein(x, e) <= i)
-    
+
     def test_corrections_with_dataset(self):
         tr = triez.Trie()
 
@@ -313,32 +315,44 @@ class TestBasic(unittest.TestCase):
        
     def test_refcount(self):
 
-        _GRC = sys.getrefcount
+        def _GRC(obj):
+            return sys.getrefcount(obj)-3
+
         class A:
             _a_destructor_called = False
             def __del__(self):
                 A._a_destructor_called = True
                 
         tr = triez.Trie()
-        #tr = {}
         a = A()
         tr[u"mo"] = a
-        self.assertEqual(_GRC(tr[u"mo"]), 3)
-        del a
         self.assertEqual(_GRC(tr[u"mo"]), 2)
+        del a
+        self.assertEqual(_GRC(tr[u"mo"]), 1)
         self.assertTrue(isinstance(tr[u"mo"], A))
         ae = tr[u"mo"]
         del ae
-        self.assertEqual(_GRC(tr[u"mo"]), 2)
+        self.assertEqual(_GRC(tr[u"mo"]), 1)
         del tr[u"mo"]
         self.assertTrue(A._a_destructor_called)
         
-        self.assertEqual(_GRC(tr), 2)
+        self.assertEqual(_GRC(tr), 1)
         suffixes = tr.iter_suffixes()
-        self.assertEqual(_GRC(tr), 3)
+        self.assertEqual(_GRC(tr), 2)
         for x in suffixes: pass
         sfx2 = tr.iter_suffixes(u"")
         self.assertEqual(_GRC(suffixes), _GRC(sfx2))
+        del suffixes
+        self.assertEqual(_GRC(tr), 2)
+        crcs = tr.iter_corrections()
+        self.assertEqual(_GRC(tr), 3)
+        prfxs = tr.iter_prefixes()
+        self.assertEqual(_GRC(tr), 4)
+        del prfxs
+        del crcs
+        del sfx2
+        self.assertEqual(_GRC(tr), 1)
+        
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)

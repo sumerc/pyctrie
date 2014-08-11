@@ -50,6 +50,7 @@ typedef struct trie_s {
     unsigned long node_count;
     unsigned long item_count;
     unsigned long height; // max height of the trie (max(len(string)))
+    unsigned long mem_usage;
     struct trie_node_s *root;
 } trie_t;
 

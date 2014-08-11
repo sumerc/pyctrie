@@ -10,6 +10,30 @@
 #define _DPRINT
 #endif
 
+void *TRIEMALLOC(trie_t *t, unsigned long size)
+{
+    void *p;
+
+    p = PyMem_Malloc(size + sizeof(unsigned long));
+    if (!p) {
+        return NULL;
+    }
+    if(t) {
+        t->mem_usage += size;
+    }
+    *(unsigned long *)p = size;
+    return (char *)p + sizeof(unsigned long);
+}
+
+void TRIEFREE(trie_t *t, void *p)
+{
+    assert(t != NULL);
+    
+    p = (char *)p - sizeof(unsigned long);
+    t->mem_usage -= *(unsigned long *)p;
+    PyMem_Free(p);
+}
+
 void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 {
     assert(k->char_size >= sizeof(TRIE_CHAR));
@@ -19,8 +43,6 @@ void KEY_CHAR_WRITE(trie_key_t *k, unsigned long index, TRIE_CHAR in)
 
 void KEY_CHAR_READ(trie_key_t *k, unsigned long index, TRIE_CHAR *out)
 {
-    _DPRINT("KEY_CHAR_READ(i:%d, sz=%d)\n", index, k->size);
-    
     assert(index < k->size);
     assert(k->char_size <= sizeof(TRIE_CHAR));
 
@@ -66,17 +88,17 @@ void KEYCPY(trie_key_t *dst, trie_key_t *src, unsigned long dst_index,
     }
 }
 
-trie_key_t *KEYCREATE(unsigned long length, unsigned char char_size)
+trie_key_t *KEYCREATE(trie_t *t, unsigned long length, unsigned char char_size)
 {
     trie_key_t *k;
 
-    k = (trie_key_t *)TRIE_MALLOC(sizeof(trie_key_t));
+    k = (trie_key_t *)TRIEMALLOC(t, sizeof(trie_key_t));
     if (!k) {
         return NULL;
     }
-    k->s = (char *)TRIE_MALLOC(length*char_size);
+    k->s = (char *)TRIEMALLOC(t, length*char_size);
     if (!k->s) {
-        TRIE_FREE(k);
+        TRIEFREE(t, k);
         return NULL;
     }
 
@@ -87,23 +109,23 @@ trie_key_t *KEYCREATE(unsigned long length, unsigned char char_size)
     return k;
 }
 
-void KEYFREE(trie_key_t *src)
+void KEYFREE(trie_t* t, trie_key_t *src)
 {
-    TRIE_FREE(src->s);
-    TRIE_FREE(src);
+    TRIEFREE(t, src->s);
+    TRIEFREE(t, src);
 }
 
-iter_stack_t * STACKCREATE(unsigned long size)
+iter_stack_t * STACKCREATE(trie_t* t, unsigned long size)
 {
     iter_stack_t *r;
 
-    r = (iter_stack_t *)TRIE_MALLOC(sizeof(iter_stack_t));
+    r = (iter_stack_t *)TRIEMALLOC(t, sizeof(iter_stack_t));
     if (!r) {
         return NULL;
     }
-    r->_elems = (iter_pos_t *)TRIE_MALLOC(size*sizeof(iter_pos_t));
+    r->_elems = (iter_pos_t *)TRIEMALLOC(t, size*sizeof(iter_pos_t));
     if (!r->_elems) {
-        TRIE_FREE(r);
+        TRIEFREE(t, r);
         return NULL;
     }
     r->index = 0;
@@ -112,10 +134,10 @@ iter_stack_t * STACKCREATE(unsigned long size)
     return r;
 }
 
-void STACKFREE(iter_stack_t *k)
+void STACKFREE(trie_t* t, iter_stack_t *k)
 {
-    TRIE_FREE(k->_elems);
-    TRIE_FREE(k);
+    TRIEFREE(t, k->_elems);
+    TRIEFREE(t, k);
 }
 
 void PUSHI(iter_stack_t *k, iter_pos_t *e)
@@ -145,11 +167,11 @@ iter_pos_t *PEEKI(iter_stack_t *k)
     return &k->_elems[k->index-1];
 }
 
-trie_node_t *_node_create(TRIE_CHAR key, TRIE_DATA value)
+trie_node_t *NODECREATE(trie_t* t, TRIE_CHAR key, TRIE_DATA value)
 {
     trie_node_t *nd;
 
-    nd = (trie_node_t *)TRIE_MALLOC(sizeof(trie_node_t));
+    nd = (trie_node_t *)TRIEMALLOC(t, sizeof(trie_node_t));
     if (nd) {
         nd->key = key;
         nd->value = value;
@@ -159,22 +181,24 @@ trie_node_t *_node_create(TRIE_CHAR key, TRIE_DATA value)
     return nd;
 }
 
-void _node_delete(trie_node_t *nd)
+void NODEFREE(trie_t* t, trie_node_t *nd)
 {
-    TRIE_FREE(nd);
+    TRIEFREE(t, nd);
 }
 
 trie_t *trie_create(void)
 {
     trie_t *t;
 
-    t = (trie_t *)TRIE_MALLOC(sizeof(trie_t));
+    t = (trie_t *)TRIEMALLOC(NULL, sizeof(trie_t));
     if (t) {
-        t->root = _node_create((TRIE_CHAR)0, (TRIE_DATA)0); // root is a dummy node
+        t->mem_usage += sizeof(trie_t);
+        t->root = NODECREATE(t, (TRIE_CHAR)0, (TRIE_DATA)0); // root is a dummy node
         t->node_count = 1;
         t->item_count = 0;
         t->height = 1;
         t->dirty = 0;
+        t->mem_usage = 0;
     }
     return t;
 }
@@ -194,19 +218,19 @@ void trie_destroy(trie_t *t)
 
         if (parent) {
             next = parent->children->next;
-            _node_delete(parent->children);
+            NODEFREE(t, parent->children);
             parent->children = next;
         } else { // root remaining
-            _node_delete(t->root);
+            NODEFREE(t, t->root);
         }
         t->node_count--;
     }
-    TRIE_FREE(t);
+    TRIEFREE(t, t);
 }
 
 unsigned long trie_mem_usage(trie_t *t)
 {
-    return sizeof(trie_t) + (t->node_count * sizeof(trie_node_t));
+    return t->mem_usage;
 }
 
 trie_node_t *_trie_prefix(trie_node_t *t, trie_key_t *key)
@@ -270,7 +294,7 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value)
             curr = curr->next;
         }
         if (!curr) {
-            curr = _node_create(ch, (TRIE_DATA)0);
+            curr = NODECREATE(t, ch, (TRIE_DATA)0);
             if (!curr){
                 return 0;
             }
@@ -358,7 +382,7 @@ int trie_del(trie_t *t, trie_key_t *key)
         if (found && !curr->children && !curr->value) {
             // we know curr == it->children as we move it to head before.
             prev = curr->next;
-            _node_delete(curr);
+            NODEFREE(t, curr);
             t->node_count--;
         } else {
             prev = curr;
@@ -409,7 +433,7 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     }
 
     // alloc a key that can hold size + max_depth chars.
-    kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));
+    kp = KEYCREATE(t, (key->size + max_depth), sizeof(TRIE_CHAR));
     if (!kp) {
         return;
     }
@@ -423,7 +447,7 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
 
     _suffixes(prefix, kp, index, cbk, cbk_arg);
 
-    KEYFREE(kp);
+    KEYFREE(t, kp);
 }
 
 void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
@@ -440,7 +464,7 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     }
 
     // alloc a key that can hold the key itself
-    kp = KEYCREATE((key->size), sizeof(TRIE_CHAR));
+    kp = KEYCREATE(t, (key->size), sizeof(TRIE_CHAR));
     if (!kp) {
         return;
     }
@@ -469,12 +493,12 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
         kp->size++;
     }
 
-    KEYFREE(kp);
+    KEYFREE(t, kp);
     
     return;
 }
 
-iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+iter_t * ITERATORCREATE(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     unsigned long alloc_size, unsigned long stack_size1, unsigned long stack_size2)
 {
     iter_t *r;
@@ -482,7 +506,7 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_key_t *kp;
 
     // alloc a key that can hold size + max_depth chars.
-    kp = KEYCREATE(alloc_size, sizeof(TRIE_CHAR));
+    kp = KEYCREATE(t, alloc_size, sizeof(TRIE_CHAR));
     if (!kp) {
         return NULL;
     }
@@ -491,24 +515,24 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
     kp->size = key->size;
 
     // allocate stacks
-    k0 = STACKCREATE(stack_size1);
+    k0 = STACKCREATE(t, stack_size1);
     if (!k0) {
-        KEYFREE(kp);
+        KEYFREE(t, kp);
         return NULL;
     }
-    k1 = STACKCREATE(stack_size1);
+    k1 = STACKCREATE(t, stack_size1);
     if (!k1) {
-        KEYFREE(kp);
-        STACKFREE(k0);
+        KEYFREE(t, kp);
+        STACKFREE(t, k0);
         return NULL;
     }
 
     // alloc iterator obj
-    r = (iter_t *)malloc(sizeof(iter_t));
+    r = (iter_t *)TRIEMALLOC(t, sizeof(iter_t));
     if (!r) {
-        KEYFREE(kp);
-        STACKFREE(k0);
-        STACKFREE(k1);
+        KEYFREE(t, kp);
+        STACKFREE(t, k0);
+        STACKFREE(t, k1);
         return NULL;
     }
 
@@ -528,12 +552,19 @@ iter_t * ITERATOR_CREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
     return r;
 }
 
-void ITERATOR_FREE(iter_t *iter)
+void ITERATORFREE(trie_t *t, iter_t *iter)
 {
-    KEYFREE(iter->key);
-    STACKFREE(iter->stack0);
-    STACKFREE(iter->stack1);
-    TRIE_FREE(iter);
+    KEYFREE(t, iter->key);
+    STACKFREE(t, iter->stack0);
+    STACKFREE(t, iter->stack1);
+    TRIEFREE(t, iter);
+}
+
+void iterator_deinit(iter_t *iter)
+{
+    assert(iter != NULL);
+
+    ITERATORFREE(iter->trie, iter);
 }
 
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
@@ -548,7 +579,7 @@ iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     }
 
     // create the iterator obj
-    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth), 
+    iter = ITERATORCREATE(t, key, max_depth, (key->size + max_depth), 
         max_depth, 0);
     if (!iter) {
         return NULL;
@@ -669,11 +700,8 @@ iter_t *itersuffixes_reset(iter_t *iter)
 
 void itersuffixes_deinit(iter_t *iter)
 {
-    assert(iter != NULL);
-
-    ITERATOR_FREE(iter);
+    iterator_deinit(iter);
 }
-
 
 iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
@@ -695,7 +723,7 @@ iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     key->size = real_size;
 
     // create the iterator obj
-    iter = ITERATOR_CREATE(t, key, max_depth, key->size, max_depth, 0);
+    iter = ITERATORCREATE(t, key, max_depth, key->size, max_depth, 0);
     if (!iter) {
         return NULL;
     }
@@ -803,9 +831,7 @@ iter_t *iterprefixes_reset(iter_t *iter)
 
 void iterprefixes_deinit(iter_t *iter)
 {
-    assert(iter != NULL);
-
-    ITERATOR_FREE(iter);
+    iterator_deinit(iter);
 }
 
 void _do(trie_key_t *key, iter_op_t *op)
@@ -853,7 +879,6 @@ void _do(trie_key_t *key, iter_op_t *op)
         break;
     }
 }
-
 
 void _undo(trie_key_t *key, iter_op_t *op)
 {
@@ -999,7 +1024,7 @@ void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_key_t *kp;
 
     // alloc a key that can hold size + max_depth chars.
-    kp = KEYCREATE((key->size + max_depth), sizeof(TRIE_CHAR));
+    kp = KEYCREATE(t, (key->size + max_depth), sizeof(TRIE_CHAR));
     if (!kp) {
         return;
     }
@@ -1008,14 +1033,14 @@ void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     
     _corrections(t, t->root, kp, 0, max_depth, cbk, cbk_arg);
 
-    KEYFREE(kp);
+    KEYFREE(t, kp);
 }
 
 iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
 
-    iter = ITERATOR_CREATE(t, key, max_depth, (key->size + max_depth), max_depth+1,
+    iter = ITERATORCREATE(t, key, max_depth, (key->size + max_depth), max_depth+1,
         max_depth);
     if (!iter) {
         return NULL;
@@ -1023,11 +1048,6 @@ iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth
     itercorrections_reset(iter);
 
     return iter;
-}
-
-void itercorrections_deinit(iter_t *iter)
-{
-    ITERATOR_FREE(iter);
 }
 
 iter_t *itercorrections_reset(iter_t *iter)
@@ -1226,4 +1246,9 @@ iter_t *itercorrections_next(iter_t *iter)
         ipos.prefix = prefix;
         PUSHI(k0, &ipos);
     }
+}
+
+void itercorrections_deinit(iter_t *iter)
+{
+    iterator_deinit(iter);
 }

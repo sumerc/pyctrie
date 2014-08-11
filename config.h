@@ -22,9 +22,6 @@
 //type for Py_UNICODE and store Unicode values internally as UCS2.
 #define TRIE_CHAR Py_UNICODE
 #endif
-
-#define TRIE_MALLOC PyMem_Malloc
-#define TRIE_FREE PyMem_Free
 #define TRIE_DATA uintptr_t
 
 #if defined(MS_WINDOWS)
