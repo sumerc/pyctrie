@@ -7,7 +7,7 @@
 #ifdef DEBUG_PRINT
 #define _DPRINT printf
 #else
-#define _DPRINT
+#define _DPRINT(x)
 #endif
 
 void *TRIEMALLOC(trie_t *t, unsigned long size)

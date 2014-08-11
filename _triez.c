@@ -56,7 +56,7 @@ void _printTKEY(trie_key_t k)
 {
     unsigned int i;
     
-    printf("key->s:%s, key->size:%d, key->char_size:%d\r\n", k.s, k.size, k.char_size);
+    printf("key->s:%s, key->size:%lu, key->char_size:%d\r\n", k.s, k.size, k.char_size);
     for(i=0;i<k.size;i++) {
         if (k.char_size == 1) {
             printf("char[%u]:0x%hhxuh\r\n", i, *(uint8_t *)&k.s[i*k.char_size]);

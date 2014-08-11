@@ -23,3 +23,8 @@ def uni(s):
     
 def is_py3k():
     return _is_py3k
+
+def u(s):
+    if not _is_py3k:
+        return unicode(s)
+    return s
