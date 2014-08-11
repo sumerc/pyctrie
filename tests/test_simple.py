@@ -255,7 +255,6 @@ class TestBasic(unittest.TestCase):
         self.assertEqual(len(suffixes), 5)
 
     def test_prefixes_unicode(self):
-
         tr = self._create_trie2()
         prefixes = tr.prefixes(u"\N{ARABIC LETTER ALEF}\N{GOTHIC LETTER AHSA}A")
         self.assertEqual(len(prefixes), 3)
@@ -352,7 +351,7 @@ class TestBasic(unittest.TestCase):
         del crcs
         del sfx2
         self.assertEqual(_GRC(tr), 1)
-        
+
     """
         import datrie; import string
         trie2 = datrie.Trie(string.ascii_lowercase)

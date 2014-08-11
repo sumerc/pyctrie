@@ -469,9 +469,7 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
         return;
     }
     KEYCPY(kp, key, 0, 0, key->size);
-    // TODO: What if first char is a surrogate pair, do we handle that?
     kp->size = 1; // start from first character 
-
 
     p = t->root;
     for(i=0;i<key->size;i++)
@@ -520,7 +518,7 @@ iter_t * ITERATORCREATE(trie_t *t, trie_key_t *key, unsigned long max_depth,
         KEYFREE(t, kp);
         return NULL;
     }
-    k1 = STACKCREATE(t, stack_size1);
+    k1 = STACKCREATE(t, stack_size2);
     if (!k1) {
         KEYFREE(t, kp);
         STACKFREE(t, k0);
@@ -1194,9 +1192,9 @@ iter_t *itercorrections_next(iter_t *iter)
             ip->pos = 2;
             if (iter->key->size != 0 && ip->op.index+1 < iter->key->size)
             {
-                ipos.pos = 0; ipos.op.type = TRANSPOSE; ipos.op.index = ip->op.index; 
-                ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; 
-                ipos.prefix = ip->prefix;
+                ipos.pos = 0; ipos.op.type = TRANSPOSE; 
+                ipos.op.index = ip->op.index; ipos.op.depth = ip->op.depth-1; 
+                ipos.iptr = NULL; ipos.prefix = ip->prefix;
                 PUSHI(k0, &ipos);
                 continue;
             }
@@ -1211,8 +1209,8 @@ iter_t *itercorrections_next(iter_t *iter)
             
             if (ip->iptr) {
                 ipos.pos = 0; ipos.op.type = INSERT; ipos.op.index = ip->op.index; 
-                ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; ipos.op.ich = ip->iptr->key;
-                ipos.prefix = ip->prefix;
+                ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; 
+                ipos.op.ich = ip->iptr->key; ipos.prefix = ip->prefix;
                 PUSHI(k0, &ipos);
                 continue;
             } 
@@ -1230,8 +1228,9 @@ iter_t *itercorrections_next(iter_t *iter)
                 }            
                 
                 if (ip->iptr) {
-                    ipos.pos = 0; ipos.op.type = CHANGE; ipos.op.index = ip->op.index; 
-                    ipos.op.depth = ip->op.depth-1; ipos.iptr = NULL; ipos.op.ich = ip->iptr->key;
+                    ipos.pos = 0; ipos.op.type = CHANGE; 
+                    ipos.op.index = ip->op.index; ipos.op.depth = ip->op.depth-1; 
+                    ipos.iptr = NULL; ipos.op.ich = ip->iptr->key;
                     ipos.prefix = ip->prefix;
                     PUSHI(k0, &ipos);
                     continue;

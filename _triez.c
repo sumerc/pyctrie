@@ -333,9 +333,9 @@ static PyObject *_create_iterator(TrieObject *trieobj, trie_key_t *key,
     
     tio = PyObject_GC_New(TrieIteratorObject, &TrieIteratorType);
     if (tio == NULL) {
-        // TODO: Print Mem Err
         return NULL;
-    }    
+    }
+    
     tio->_trieobj = trieobj;
     Py_INCREF(tio->_trieobj);
     PyObject_GC_Track(tio);
