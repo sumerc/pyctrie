@@ -47,11 +47,6 @@ int _initialize(void)
     return 1;
 }
 
-void _pPTR(void *ptr)
-{
-    printf("ptr:%p\r\n", ptr);
-}
-
 int _IsValid_Unicode(PyObject *s)
 {
     if (!PyUnicode_Check(s)) {
@@ -404,7 +399,7 @@ static PyObject *Trie_suffixes(PyObject* selfobj, PyObject *args)
     }
     
     sfxs = PySet_New(0);
-    suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
+    trie_suffixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
 }
@@ -418,8 +413,8 @@ static PyObject *Trie_itersuffixes(PyObject* selfobj, PyObject *args)
         return NULL;
     }
 
-    return _create_iterator((TrieObject *)selfobj, &k, max_depth, itersuffixes_init, 
-        itersuffixes_next, itersuffixes_reset, itersuffixes_deinit);
+    return _create_iterator((TrieObject *)selfobj, &k, max_depth, 
+        trie_itersuffixes_init, trie_itersuffixes_next, trie_itersuffixes_reset, trie_itersuffixes_deinit);
 }
 
 static PyObject *Trie_prefixes(PyObject* selfobj, PyObject *args)
@@ -434,7 +429,7 @@ static PyObject *Trie_prefixes(PyObject* selfobj, PyObject *args)
     }
     
     sfxs = PySet_New(0);
-    prefixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
+    trie_prefixes(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
 }
@@ -448,8 +443,9 @@ static PyObject *Trie_iterprefixes(PyObject* selfobj, PyObject *args)
         return NULL;
     }
 
-    return _create_iterator((TrieObject *)selfobj, &k, max_depth, iterprefixes_init, 
-        iterprefixes_next, iterprefixes_reset, iterprefixes_deinit);
+    return _create_iterator((TrieObject *)selfobj, &k, max_depth, 
+        trie_iterprefixes_init, trie_iterprefixes_next, trie_iterprefixes_reset, 
+        trie_iterprefixes_deinit);
 }
 
 static PyObject *Trie_corrections(PyObject* selfobj, PyObject *args)
@@ -464,7 +460,7 @@ static PyObject *Trie_corrections(PyObject* selfobj, PyObject *args)
     }
     
     sfxs = PySet_New(0);
-    corrections(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
+    trie_corrections(((TrieObject *)selfobj)->ptrie, &k, max_depth, _enum_keys, sfxs);
     
     return sfxs;
 }
@@ -478,8 +474,9 @@ static PyObject *Trie_itercorrections(PyObject* selfobj, PyObject *args)
         return NULL;
     }
 
-    return _create_iterator((TrieObject *)selfobj, &k, max_depth, itercorrections_init, 
-        itercorrections_next, itercorrections_reset, itercorrections_deinit);
+    return _create_iterator((TrieObject *)selfobj, &k, max_depth, 
+        trie_itercorrections_init, trie_itercorrections_next, 
+        trie_itercorrections_reset, trie_itercorrections_deinit);
 }
 
 // Iterate keys start from root, depth is trie's height.
@@ -499,8 +496,8 @@ PyObject *Trie_iter(PyObject *obj)
     k.char_size = sizeof(Py_UNICODE);
 #endif
     
-    return _create_iterator(self, &k, self->ptrie->height, itersuffixes_init, 
-        itersuffixes_next, itersuffixes_reset, itersuffixes_deinit);
+    return _create_iterator(self, &k, self->ptrie->height, 
+        trie_itersuffixes_init, trie_itersuffixes_next, trie_itersuffixes_reset, trie_itersuffixes_deinit);
 }
 
 /* Hack to implement "key in trie" */

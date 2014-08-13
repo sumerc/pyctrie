@@ -108,7 +108,13 @@ typedef struct iter_s {
 } iter_t;
 
 typedef int (*trie_enum_cbk_t)(trie_key_t *key, void *arg);
+typedef iter_t *(*trie_iter_init_func_t)(trie_t *t, trie_key_t *key, 
+    unsigned long max_depth);
+typedef iter_t *(*trie_iter_next_func_t)(iter_t *iter);
+typedef iter_t *(*trie_iter_reset_func_t)(iter_t *iter);
+typedef void (*trie_iter_deinit_func_t)(iter_t *iter);
 
+// Basic Trie functions
 trie_t *trie_create(void);
 void trie_destroy(trie_t *t);
 unsigned long trie_mem_usage(trie_t *t);
@@ -117,39 +123,29 @@ int trie_add(trie_t *t, trie_key_t *key, TRIE_DATA value);
 int trie_del(trie_t *t, trie_key_t *key);
 
 // Enumeration functions
-
-// Function pointer declarations
-typedef iter_t *(*trie_iter_init_func_t)(trie_t *t, trie_key_t *key, 
-    unsigned long max_depth);
-typedef iter_t *(*trie_iter_next_func_t)(iter_t *iter);
-typedef iter_t *(*trie_iter_reset_func_t)(iter_t *iter);
-typedef void (*trie_iter_deinit_func_t)(iter_t *iter);
-
-// TODO: All functions should start with trie_XXX() prefix.
-
 // Suffix
-void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+void trie_suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
-iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
-iter_t *itersuffixes_next(iter_t *iter);
-iter_t *itersuffixes_reset(iter_t *iter);
-void itersuffixes_deinit(iter_t *iter);
+iter_t *trie_itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *trie_itersuffixes_next(iter_t *iter);
+iter_t *trie_itersuffixes_reset(iter_t *iter);
+void trie_itersuffixes_deinit(iter_t *iter);
 // Prefix
-void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+void trie_prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg);
-iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
-iter_t *iterprefixes_next(iter_t *iter);
-iter_t *iterprefixes_reset(iter_t *iter);
-void iterprefixes_deinit(iter_t *iter);
+iter_t *trie_iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *trie_iterprefixes_next(iter_t *iter);
+iter_t *trie_iterprefixes_reset(iter_t *iter);
+void trie_iterprefixes_deinit(iter_t *iter);
 // Correct
-void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
+void trie_corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_enum_cbk_t cbk, void* cbk_arg);
-iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
-iter_t *itercorrections_next(iter_t *iter);
-iter_t *itercorrections_reset(iter_t *iter);
-void itercorrections_deinit(iter_t *iter);
+iter_t *trie_itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth);
+iter_t *trie_itercorrections_next(iter_t *iter);
+iter_t *trie_itercorrections_reset(iter_t *iter);
+void trie_itercorrections_deinit(iter_t *iter);
 
 // Debug functions 
-void debug_print_key(trie_key_t *k);
+void trie_debug_print_key(trie_key_t *k);
 
 #endif

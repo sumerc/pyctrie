@@ -488,7 +488,7 @@ void _suffixes(trie_node_t *p, trie_key_t *key, unsigned long index,
     }
 }
 
-void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+void trie_suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg)
 {
     trie_key_t *kp;
@@ -519,7 +519,7 @@ void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     KEYFREE(t, kp);
 }
 
-iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+iter_t *trie_itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
     trie_node_t *prefix;
@@ -536,17 +536,17 @@ iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     if (!iter) {
         return NULL;
     }
-    itersuffixes_reset(iter);
+    trie_itersuffixes_reset(iter);
 
     return iter;
 }
 
-void itersuffixes_deinit(iter_t *iter)
+void trie_itersuffixes_deinit(iter_t *iter)
 {
     iterator_deinit(iter);
 }
 
-iter_t *itersuffixes_reset(iter_t *iter)
+iter_t *trie_itersuffixes_reset(iter_t *iter)
 {
     trie_node_t *prefix;
     iter_pos_t ipos;
@@ -579,7 +579,7 @@ iter_t *itersuffixes_reset(iter_t *iter)
     return iter;
 }
 
-iter_t *itersuffixes_next(iter_t *iter)
+iter_t *trie_itersuffixes_next(iter_t *iter)
 {
     iter_pos_t *ip;
     iter_pos_t ipos;
@@ -655,7 +655,7 @@ iter_t *itersuffixes_next(iter_t *iter)
     return iter;
 }
 
-void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+void trie_prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     trie_enum_cbk_t cbk, void* cbk_arg)
 {
     trie_key_t *kp;
@@ -701,7 +701,7 @@ void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth,
     return;
 }
 
-iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+iter_t *trie_iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
     trie_node_t *prefix;
@@ -725,17 +725,17 @@ iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
     if (!iter) {
         return NULL;
     }
-    iterprefixes_reset(iter);
+    trie_iterprefixes_reset(iter);
 
     return iter;
 }
 
-void iterprefixes_deinit(iter_t *iter)
+void trie_iterprefixes_deinit(iter_t *iter)
 {
     iterator_deinit(iter);
 }
 
-iter_t *iterprefixes_reset(iter_t *iter)
+iter_t *trie_iterprefixes_reset(iter_t *iter)
 {
     iter_pos_t ipos;
     trie_node_t *prefix;
@@ -770,7 +770,7 @@ iter_t *iterprefixes_reset(iter_t *iter)
     return iter;
 }
 
-iter_t *iterprefixes_next(iter_t *iter)
+iter_t *trie_iterprefixes_next(iter_t *iter)
 {
     iter_pos_t *ip;
     trie_key_t k;
@@ -1016,7 +1016,7 @@ void _corrections(trie_t * t, trie_node_t *pprefix, trie_key_t *key,
     _corrections(t, prefix, key, c_index+1, c_depth, cbk, cbk_arg);
 }
 
-void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
+void trie_corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     trie_enum_cbk_t cbk, void* cbk_arg)
 {
     trie_key_t *kp;
@@ -1034,7 +1034,7 @@ void corrections(trie_t *t, trie_key_t *key, unsigned long max_depth,
     KEYFREE(t, kp);
 }
 
-iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
+iter_t *trie_itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
 
@@ -1043,17 +1043,17 @@ iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth
     if (!iter) {
         return NULL;
     }
-    itercorrections_reset(iter);
+    trie_itercorrections_reset(iter);
 
     return iter;
 }
 
-void itercorrections_deinit(iter_t *iter)
+void trie_itercorrections_deinit(iter_t *iter)
 {
     iterator_deinit(iter);
 }
 
-iter_t *itercorrections_reset(iter_t *iter)
+iter_t *trie_itercorrections_reset(iter_t *iter)
 {
     iter_pos_t ipos;
 
@@ -1082,7 +1082,7 @@ iter_t *itercorrections_reset(iter_t *iter)
     return iter;
 }
 
-iter_t *itercorrections_next(iter_t *iter)
+iter_t *trie_itercorrections_next(iter_t *iter)
 {
     trie_key_t pk;
     iter_pos_t *ip;
@@ -1252,7 +1252,7 @@ iter_t *itercorrections_next(iter_t *iter)
     }
 }
 
-void debug_print_key(trie_key_t *k)
+void trie_debug_print_key(trie_key_t *k)
 {
     unsigned int i;
     
