@@ -149,4 +149,7 @@ iter_t *itercorrections_next(iter_t *iter);
 iter_t *itercorrections_reset(iter_t *iter);
 void itercorrections_deinit(iter_t *iter);
 
+// Debug functions 
+void debug_print_key(trie_key_t *k);
+
 #endif

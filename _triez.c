@@ -52,25 +52,8 @@ void _pPTR(void *ptr)
     printf("ptr:%p\r\n", ptr);
 }
 
-void _printTKEY(trie_key_t k)
-{
-    unsigned int i;
-    
-    printf("key->s:%s, key->size:%lu, key->char_size:%d\r\n", k.s, k.size, k.char_size);
-    for(i=0;i<k.size;i++) {
-        if (k.char_size == 1) {
-            printf("char[%u]:0x%hhxuh\r\n", i, *(uint8_t *)&k.s[i*k.char_size]);
-        } else if (k.char_size == 2) {
-            printf("char[%u]:0x%hxh\n", i, *(uint16_t *)&k.s[i*k.char_size]);
-        } else if (k.char_size == 4) {
-            printf("char[%u]:0x%xh\r\n", i, *(uint32_t *)&k.s[i*k.char_size]);
-        }
-    }
-}
-
 int _IsValid_Unicode(PyObject *s)
 {
-
     if (!PyUnicode_Check(s)) {
         return 0;
     }
@@ -91,9 +74,9 @@ trie_key_t _PyUnicode_AS_TKEY(PyObject *s)
     k.s = (char *)TriezUnicode(s);
     k.size = TriezUnicode_Size(s);
     k.char_size = TriezUnicode_CharSize(s);
-    
-    //_DebugPrintTKEY(k);
-    
+
+    //debug_print_key(&k);
+
     return k;
 }
 

@@ -398,104 +398,6 @@ int trie_del(trie_t *t, trie_key_t *key)
     return found;
 }
 
-void _suffixes(trie_node_t *p, trie_key_t *key, unsigned long index, 
-    trie_enum_cbk_t cbk, void* cbk_arg)
-{
-    if (p->value) {
-        cbk(key, cbk_arg);
-    }
-    
-    if (index == key->alloc_size) {
-        return;
-    }
-    p = p->children;
-    while(p){
-        KEY_CHAR_WRITE(key, index, p->key);
-        key->size = index+1;
-        
-        _suffixes(p, key, index+1, cbk, cbk_arg);
-      
-        p = p->next;
-    }
-}
-
-void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
-    trie_enum_cbk_t cbk, void* cbk_arg)
-{
-    trie_key_t *kp;
-    trie_node_t *prefix;
-    unsigned long index;
-
-    // first search key
-    prefix = _trie_prefix(t->root, key);
-    if (!prefix) {
-        return;
-    }
-
-    // alloc a key that can hold size + max_depth chars.
-    kp = KEYCREATE(t, (key->size + max_depth), sizeof(TRIE_CHAR));
-    if (!kp) {
-        return;
-    }
-    KEYCPY(kp, key, 0, 0, key->size);
-    kp->size = key->size;
-    
-    index = 0;
-    if (kp->size > 0) {
-        index = kp->size;
-    }
-
-    _suffixes(prefix, kp, index, cbk, cbk_arg);
-
-    KEYFREE(t, kp);
-}
-
-void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
-    trie_enum_cbk_t cbk, void* cbk_arg)
-{
-    trie_key_t *kp;
-    trie_key_t k;
-    trie_node_t *p;
-    unsigned long i;
-    TRIE_CHAR ch;
-
-    if (key->size == 0) {
-        return;
-    }
-
-    // alloc a key that can hold the key itself
-    kp = KEYCREATE(t, (key->size), sizeof(TRIE_CHAR));
-    if (!kp) {
-        return;
-    }
-    KEYCPY(kp, key, 0, 0, key->size);
-    kp->size = 1; // start from first character 
-
-    p = t->root;
-    for(i=0;i<key->size;i++)
-    {
-        if (i == max_depth) {
-            break;
-        }
-
-        KEY_CHAR_READ(kp, i, &ch);
-        k.s = (char *)&ch; k.size = 1; k.char_size = kp->char_size;
-        p = _trie_prefix(p, &k);
-        if (!p) {
-            break;
-        }
-        if(p->value)
-        {
-            cbk(kp, cbk_arg);
-        }
-        kp->size++;
-    }
-
-    KEYFREE(t, kp);
-    
-    return;
-}
-
 iter_t * ITERATORCREATE(trie_t *t, trie_key_t *key, unsigned long max_depth, 
     unsigned long alloc_size, unsigned long stack_size1, unsigned long stack_size2)
 {
@@ -565,6 +467,58 @@ void iterator_deinit(iter_t *iter)
     ITERATORFREE(iter->trie, iter);
 }
 
+void _suffixes(trie_node_t *p, trie_key_t *key, unsigned long index, 
+    trie_enum_cbk_t cbk, void* cbk_arg)
+{
+    if (p->value) {
+        cbk(key, cbk_arg);
+    }
+    
+    if (index == key->alloc_size) {
+        return;
+    }
+    p = p->children;
+    while(p){
+        KEY_CHAR_WRITE(key, index, p->key);
+        key->size = index+1;
+        
+        _suffixes(p, key, index+1, cbk, cbk_arg);
+      
+        p = p->next;
+    }
+}
+
+void suffixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    trie_enum_cbk_t cbk, void* cbk_arg)
+{
+    trie_key_t *kp;
+    trie_node_t *prefix;
+    unsigned long index;
+
+    // first search key
+    prefix = _trie_prefix(t->root, key);
+    if (!prefix) {
+        return;
+    }
+
+    // alloc a key that can hold size + max_depth chars.
+    kp = KEYCREATE(t, (key->size + max_depth), sizeof(TRIE_CHAR));
+    if (!kp) {
+        return;
+    }
+    KEYCPY(kp, key, 0, 0, key->size);
+    kp->size = key->size;
+    
+    index = 0;
+    if (kp->size > 0) {
+        index = kp->size;
+    }
+
+    _suffixes(prefix, kp, index, cbk, cbk_arg);
+
+    KEYFREE(t, kp);
+}
+
 iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
 {
     iter_t *iter;
@@ -583,6 +537,44 @@ iter_t *itersuffixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
         return NULL;
     }
     itersuffixes_reset(iter);
+
+    return iter;
+}
+
+void itersuffixes_deinit(iter_t *iter)
+{
+    iterator_deinit(iter);
+}
+
+iter_t *itersuffixes_reset(iter_t *iter)
+{
+    trie_node_t *prefix;
+    iter_pos_t ipos;
+
+    // pop all elems first
+    while(POPI(iter->stack0))
+        ;
+
+    // return key->size to original
+    iter->key->size = iter->key->alloc_size-iter->max_depth;
+
+    // get prefix in the trie
+    prefix = _trie_prefix(iter->trie->root, iter->key);
+    if (!prefix) {
+        return NULL;
+    }
+
+    // push the first iter_pos
+    ipos.iptr = prefix;
+    ipos.pos = 0;
+    ipos.op.index = iter->key->size-1;
+    PUSHI(iter->stack0, &ipos);
+
+    iter->first = 1;
+    iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
 
     return iter;
 }
@@ -663,42 +655,50 @@ iter_t *itersuffixes_next(iter_t *iter)
     return iter;
 }
 
-iter_t *itersuffixes_reset(iter_t *iter)
+void prefixes(trie_t *t, trie_key_t *key, unsigned long max_depth, 
+    trie_enum_cbk_t cbk, void* cbk_arg)
 {
-    trie_node_t *prefix;
-    iter_pos_t ipos;
+    trie_key_t *kp;
+    trie_key_t k;
+    trie_node_t *p;
+    unsigned long i;
+    TRIE_CHAR ch;
 
-    // pop all elems first
-    while(POPI(iter->stack0))
-        ;
-
-    // return key->size to original
-    iter->key->size = iter->key->alloc_size-iter->max_depth;
-
-    // get prefix in the trie
-    prefix = _trie_prefix(iter->trie->root, iter->key);
-    if (!prefix) {
-        return NULL;
+    if (key->size == 0) {
+        return;
     }
 
-    // push the first iter_pos
-    ipos.iptr = prefix;
-    ipos.pos = 0;
-    ipos.op.index = iter->key->size-1;
-    PUSHI(iter->stack0, &ipos);
+    // alloc a key that can hold the key itself
+    kp = KEYCREATE(t, (key->size), sizeof(TRIE_CHAR));
+    if (!kp) {
+        return;
+    }
+    KEYCPY(kp, key, 0, 0, key->size);
+    kp->size = 1; // start from first character 
 
-    iter->first = 1;
-    iter->last = 0;
-    iter->fail = 0;
-    iter->fail_reason = UNDEFINED;
-    iter->trie->dirty = 0;
+    p = t->root;
+    for(i=0;i<key->size;i++)
+    {
+        if (i == max_depth) {
+            break;
+        }
 
-    return iter;
-}
+        KEY_CHAR_READ(kp, i, &ch);
+        k.s = (char *)&ch; k.size = 1; k.char_size = kp->char_size;
+        p = _trie_prefix(p, &k);
+        if (!p) {
+            break;
+        }
+        if(p->value)
+        {
+            cbk(kp, cbk_arg);
+        }
+        kp->size++;
+    }
 
-void itersuffixes_deinit(iter_t *iter)
-{
-    iterator_deinit(iter);
+    KEYFREE(t, kp);
+    
+    return;
 }
 
 iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
@@ -726,6 +726,46 @@ iter_t *iterprefixes_init(trie_t *t, trie_key_t *key, unsigned long max_depth)
         return NULL;
     }
     iterprefixes_reset(iter);
+
+    return iter;
+}
+
+void iterprefixes_deinit(iter_t *iter)
+{
+    iterator_deinit(iter);
+}
+
+iter_t *iterprefixes_reset(iter_t *iter)
+{
+    iter_pos_t ipos;
+    trie_node_t *prefix;
+
+    // pop all elems first
+    while(POPI(iter->stack0))
+        ;
+
+    // search first char
+    iter->key->size = 1;
+    prefix = _trie_prefix(iter->trie->root, iter->key);
+    if (!prefix) {
+        return NULL;
+    }
+
+    // return key->size to original
+    iter->key->size = iter->key->alloc_size; 
+
+    // push the first iter_pos
+    ipos.iptr = prefix;
+    ipos.op.index = 1;
+    ipos.pos = 0;
+    PUSHI(iter->stack0, &ipos);
+
+    // set flags
+    iter->first = 1;
+    iter->last = 0;
+    iter->fail = 0;
+    iter->fail_reason = UNDEFINED;
+    iter->trie->dirty = 0;
 
     return iter;
 }
@@ -790,46 +830,6 @@ iter_t *iterprefixes_next(iter_t *iter)
     }
 
     return iter;
-}
-
-iter_t *iterprefixes_reset(iter_t *iter)
-{
-    iter_pos_t ipos;
-    trie_node_t *prefix;
-
-    // pop all elems first
-    while(POPI(iter->stack0))
-        ;
-
-    // search first char
-    iter->key->size = 1;
-    prefix = _trie_prefix(iter->trie->root, iter->key);
-    if (!prefix) {
-        return NULL;
-    }
-
-    // return key->size to original
-    iter->key->size = iter->key->alloc_size; 
-
-    // push the first iter_pos
-    ipos.iptr = prefix;
-    ipos.op.index = 1;
-    ipos.pos = 0;
-    PUSHI(iter->stack0, &ipos);
-
-    // set flags
-    iter->first = 1;
-    iter->last = 0;
-    iter->fail = 0;
-    iter->fail_reason = UNDEFINED;
-    iter->trie->dirty = 0;
-
-    return iter;
-}
-
-void iterprefixes_deinit(iter_t *iter)
-{
-    iterator_deinit(iter);
 }
 
 void _do(trie_key_t *key, iter_op_t *op)
@@ -1048,6 +1048,11 @@ iter_t *itercorrections_init(trie_t *t, trie_key_t *key, unsigned long max_depth
     return iter;
 }
 
+void itercorrections_deinit(iter_t *iter)
+{
+    iterator_deinit(iter);
+}
+
 iter_t *itercorrections_reset(iter_t *iter)
 {
     iter_pos_t ipos;
@@ -1247,7 +1252,19 @@ iter_t *itercorrections_next(iter_t *iter)
     }
 }
 
-void itercorrections_deinit(iter_t *iter)
+void debug_print_key(trie_key_t *k)
 {
-    iterator_deinit(iter);
+    unsigned int i;
+    
+    printf("key->s:%s, key->size:%lu, key->char_size:%d\n", k->s, k->size, 
+        k->char_size);
+    for(i=0;i<k->size;i++) {
+        if (k->char_size == 1) {
+            printf("key->s[%u]:0x%hhx\n", i, *(uint8_t *)&k->s[i*k->char_size]);
+        } else if (k->char_size == 2) {
+            printf("key->s[%u]:0x%hx\n", i, *(uint16_t *)&k->s[i*k->char_size]);
+        } else if (k->char_size == 4) {
+            printf("key->s[%u]:0x%x\n", i, *(uint32_t *)&k->s[i*k->char_size]);
+        }
+    }
 }
