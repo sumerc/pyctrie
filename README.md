@@ -40,7 +40,6 @@ for x in tr.iter_suffixes(u"foo"):
 ...
 foo
 foobar
->>>
 ```
 
 License
