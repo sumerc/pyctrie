@@ -1,13 +1,11 @@
-
 triez 
 ===================
 Fast, pure C, [Trie](http://en.wikipedia.org/wiki/Trie) Python extension
 
 Features:
 ===================
-  * Very fast. Same performance characteristics with Python's dict. 
-    Want to see, [how](xxxx)?
-  * Fast autocomplete, prefix, correction (spell) operations.
+  * Very fast. Same performance characteristics with Python's **dict**.
+  * Fast **suffix**, **prefix**, **correction** (spell) operations.
   * Supports Python 2.6 <= x <= 3.4
 
 Example:
