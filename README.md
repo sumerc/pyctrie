@@ -21,8 +21,6 @@ del trie[u"foo"]
 
 But with extra features:
 ```python
-import triez
-tr = triez.Trie()
 tr[u"foo"] = 1
 tr.corrections(u"fo")
 {'foo'}
@@ -35,8 +33,6 @@ tr.suffixes(u"foo")
 
 Generator support:
 ```python
-import triez
-tr = triez.Trie()
 tr[u"foo"] = 1
 tr[u"foobar"] = 1
 for x in tr.iter_suffixes(u"foo"):
