@@ -13,34 +13,34 @@ Example:
 
 It is just like a dict:
 ```python
->>> import triez
->>> tr = triez.Trie()
->>> tr[u"foo"] = 1
->>> del trie[u"foo"]
+import triez
+tr = triez.Trie()
+tr[u"foo"] = 1
+del trie[u"foo"]
 ```
 
 But with extra features:
 ```python
->>> import triez
->>> tr = triez.Trie()
->>> tr[u"foo"] = 1
->>> tr.corrections(u"fo")
+import triez
+tr = triez.Trie()
+tr[u"foo"] = 1
+tr.corrections(u"fo")
 {'foo'}
->>> tr[u"foobar"] = 1
->>> tr.prefixes(u"foobar")
+tr[u"foobar"] = 1
+tr.prefixes(u"foobar")
 {'foo', 'foobar'}
->>> tr.suffixes(u"foo")
+tr.suffixes(u"foo")
 {'foo', 'foobar'}
 ```
 
 Generator support:
 ```python
->>> import triez
->>> tr = triez.Trie()
->>> tr[u"foo"] = 1
->>> tr[u"foobar"] = 1
->>> for x in tr.iter_suffixes(u"foo"):
-...     print(x)
+import triez
+tr = triez.Trie()
+tr[u"foo"] = 1
+tr[u"foobar"] = 1
+for x in tr.iter_suffixes(u"foo"):
+... print(x)
 ...
 foo
 foobar
