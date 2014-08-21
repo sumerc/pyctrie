@@ -1,6 +1,6 @@
 dict-trie 
 ===================
-Fast, pure C dict-like [Trie](http://en.wikipedia.org/wiki/Trie)
+Fast, pure C [Trie](http://en.wikipedia.org/wiki/Trie) as a dict backend.
 
 Features:
 ===================
