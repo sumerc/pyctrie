@@ -1,6 +1,6 @@
 dict-trie 
 ===================
-Fast, pure C [Trie](http://en.wikipedia.org/wiki/Trie) as a dict backend.
+Fast, pure C [Trie](http://en.wikipedia.org/wiki/Trie) dictionary
 
 Features:
 ===================
