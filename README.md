@@ -1,6 +1,6 @@
-triez 
+dict-trie 
 ===================
-Fast, pure C, [Trie](http://en.wikipedia.org/wiki/Trie) Python extension
+Fast, pure C dict-like [Trie](http://en.wikipedia.org/wiki/Trie)
 
 Features:
 ===================
