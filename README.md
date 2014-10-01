@@ -36,8 +36,7 @@ Generator support:
 tr[u"foo"] = 1
 tr[u"foobar"] = 1
 for x in tr.iter_suffixes(u"foo"):
-... print(x)
-...
+    print(x)
 foo
 foobar
 ```
