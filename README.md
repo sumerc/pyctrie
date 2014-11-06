@@ -1,11 +1,11 @@
-PyCTrie
+Pyctrie
 ===================
 Fast, pure C [Trie](http://en.wikipedia.org/wiki/Trie) dictionary
 
 Features:
 ===================
   * Very fast. Same performance characteristics with Python's **dict**.
-  * Fast **suffix**, **prefix**, **correction** (spell) operations.
+  * Supports fast **suffix**, **prefix**, **correction** (spell) operations.
   * Supports Python 2.6 <= x <= 3.4
 
 Example:

@@ -7,10 +7,10 @@ from distutils.core import Extension
 f = open('README.md')
 long_description = f.read()
 
-HOMEPAGE = "http://bitbucket.org/sumerc/triez/"
-NAME = "triez"
+HOMEPAGE = "http://bitbucket.org/sumerc/pyctrie/"
+NAME = "pyctrie"
 VERSION = "0.1"
-DEBUG = True
+DEBUG = False
 
 user_macros = []
 user_libraries = []
